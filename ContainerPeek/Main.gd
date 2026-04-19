@@ -1,6 +1,8 @@
 extends Node
 
 const GAME_DATA_RES := "res://Resources/GameData.tres"
+const UI_THEME_RES := "res://UI/Themes/Theme.tres"
+const UI_TILE_RES := "res://UI/Sprites/Tile.png"
 const SCAN_PERIOD := 1.0
 const PANEL_OFFSET := Vector2(18.0, 18.0)
 const SCREEN_PAD := 12.0
@@ -27,6 +29,8 @@ var _title_label: Label
 var _item_scroll: ScrollContainer
 var _items_box: VBoxContainer
 var _hint_label: Label
+var _ui_theme: Theme
+var _ui_tile: Texture2D
 
 
 func _ready() -> void:
@@ -103,51 +107,54 @@ func _unhandled_input(event: InputEvent) -> void:
 
 
 func _build_ui() -> void:
+	if ResourceLoader.exists(UI_THEME_RES):
+		_ui_theme = load(UI_THEME_RES) as Theme
+	if ResourceLoader.exists(UI_TILE_RES):
+		_ui_tile = load(UI_TILE_RES) as Texture2D
+
 	_canvas = CanvasLayer.new()
 	_canvas.layer = 110
 	_canvas.name = "ContainerPeekCanvas"
 	add_child(_canvas)
 
 	_panel = PanelContainer.new()
+	_panel.theme = _ui_theme
 	_panel.visible = false
 	_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_panel.custom_minimum_size = Vector2(260.0, 0.0)
+	_panel.custom_minimum_size = Vector2(320.0, 0.0)
 	_canvas.add_child(_panel)
 
-	var panel_style := StyleBoxFlat.new()
-	panel_style.bg_color = Color(0.03, 0.04, 0.05, 0.95)
-	panel_style.border_color = Color(0.58, 0.64, 0.68, 0.85)
-	panel_style.border_width_left = 1
-	panel_style.border_width_top = 1
-	panel_style.border_width_right = 1
-	panel_style.border_width_bottom = 1
-	panel_style.corner_radius_top_left = 4
-	panel_style.corner_radius_top_right = 4
-	panel_style.corner_radius_bottom_left = 4
-	panel_style.corner_radius_bottom_right = 4
-	panel_style.shadow_color = Color(0.0, 0.0, 0.0, 0.35)
-	panel_style.shadow_size = 8
+	var panel_style: StyleBox = _make_panel_style()
 	_panel.add_theme_stylebox_override("panel", panel_style)
 
 	var margin := MarginContainer.new()
-	margin.add_theme_constant_override("margin_left", 10)
-	margin.add_theme_constant_override("margin_top", 8)
-	margin.add_theme_constant_override("margin_right", 10)
-	margin.add_theme_constant_override("margin_bottom", 10)
+	margin.add_theme_constant_override("margin_left", 6)
+	margin.add_theme_constant_override("margin_top", 6)
+	margin.add_theme_constant_override("margin_right", 6)
+	margin.add_theme_constant_override("margin_bottom", 6)
 	_panel.add_child(margin)
 
 	var root := VBoxContainer.new()
-	root.add_theme_constant_override("separation", 6)
+	root.add_theme_constant_override("separation", 4)
 	margin.add_child(root)
 
-	_title_label = Label.new()
-	_title_label.add_theme_font_size_override("font_size", 15)
-	_title_label.add_theme_color_override("font_color", Color(0.95, 0.97, 0.98))
-	root.add_child(_title_label)
+	var header := ColorRect.new()
+	header.custom_minimum_size = Vector2(0.0, 28.0)
+	header.color = Color(1.0, 1.0, 1.0, 0.047)
+	root.add_child(header)
 
-	root.add_child(_make_divider())
+	_title_label = Label.new()
+	_title_label.theme = _ui_theme
+	_title_label.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+	_title_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_title_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_title_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_title_label.add_theme_font_size_override("font_size", 13)
+	header.add_child(_title_label)
 
 	_item_scroll = ScrollContainer.new()
+	_item_scroll.theme = _ui_theme
 	_item_scroll.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_item_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	_item_scroll.custom_minimum_size = Vector2(0.0, float(MAX_VISIBLE_ITEMS * ITEM_ROW_HEIGHT))
@@ -161,9 +168,11 @@ func _build_ui() -> void:
 	root.add_child(_make_divider())
 
 	_hint_label = Label.new()
+	_hint_label.theme = _ui_theme
 	_hint_label.text = "Wheel: Scroll   F: Transfer   R: Take All"
 	_hint_label.add_theme_font_size_override("font_size", 12)
-	_hint_label.add_theme_color_override("font_color", Color(HINT_COLOR))
+	_hint_label.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0, 0.5))
+	_hint_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	root.add_child(_hint_label)
 
 
@@ -172,6 +181,27 @@ func _make_divider() -> ColorRect:
 	divider.color = Color(0.58, 0.65, 0.69, 0.25)
 	divider.custom_minimum_size = Vector2(0.0, 1.0)
 	return divider
+
+
+func _make_panel_style() -> StyleBox:
+	if _ui_tile != null:
+		var style := StyleBoxTexture.new()
+		style.texture = _ui_tile
+		style.texture_margin_left = 1.0
+		style.texture_margin_top = 1.0
+		style.texture_margin_right = 1.0
+		style.texture_margin_bottom = 1.0
+		style.modulate_color = Color(1.0, 1.0, 1.0, 0.86)
+		return style
+
+	var fallback := StyleBoxFlat.new()
+	fallback.bg_color = Color(0.06, 0.06, 0.06, 0.92)
+	fallback.border_color = Color(1.0, 1.0, 1.0, 0.18)
+	fallback.border_width_left = 1
+	fallback.border_width_top = 1
+	fallback.border_width_right = 1
+	fallback.border_width_bottom = 1
+	return fallback
 
 
 func _hide_panel() -> void:
@@ -374,33 +404,46 @@ func _render_item_rows(node: Node) -> void:
 
 func _make_row(text: String, selected: bool, status: bool) -> Control:
 	var row := PanelContainer.new()
+	row.theme = _ui_theme
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	row.custom_minimum_size = Vector2(0.0, float(ITEM_ROW_HEIGHT))
 	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 
-	var style := StyleBoxFlat.new()
+	var style: StyleBox
 	if selected:
-		style.bg_color = Color(0.09, 0.19, 0.24, 0.95)
-		style.corner_radius_top_left = 3
-		style.corner_radius_top_right = 3
-		style.corner_radius_bottom_left = 3
-		style.corner_radius_bottom_right = 3
+		if _ui_tile != null:
+			var textured := StyleBoxTexture.new()
+			textured.texture = _ui_tile
+			textured.texture_margin_left = 1.0
+			textured.texture_margin_top = 1.0
+			textured.texture_margin_right = 1.0
+			textured.texture_margin_bottom = 1.0
+			textured.modulate_color = Color(1.0, 1.0, 1.0, 0.32)
+			style = textured
+		else:
+			var selected_fallback := StyleBoxFlat.new()
+			selected_fallback.bg_color = Color(0.2, 0.2, 0.2, 0.9)
+			style = selected_fallback
 	else:
-		style.bg_color = Color(0.0, 0.0, 0.0, 0.0)
+		var empty_style := StyleBoxEmpty.new()
+		empty_style.content_margin_left = 2.0
+		empty_style.content_margin_right = 2.0
+		style = empty_style
 	row.add_theme_stylebox_override("panel", style)
 
 	var label := Label.new()
+	label.theme = _ui_theme
 	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	label.text = ("> " if selected else "  ") + text
 	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	label.add_theme_font_size_override("font_size", 13)
 	if status:
-		label.add_theme_color_override("font_color", Color(1.0, 0.87, 0.55))
+		label.add_theme_color_override("font_color", Color(1.0, 0.87, 0.55, 1.0))
 	elif selected:
-		label.add_theme_color_override("font_color", Color(SELECTED_ACCENT))
+		label.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0, 1.0))
 	else:
-		label.add_theme_color_override("font_color", Color(DIM_COLOR))
+		label.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0, 0.78))
 	row.add_child(label)
 	return row
 
