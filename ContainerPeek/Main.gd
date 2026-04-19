@@ -57,10 +57,7 @@ func _process(delta: float) -> void:
 		_hide_panel()
 		return
 
-	var target := _target_from_cursor_raycast(cam)
-	if target.is_empty():
-		target = _target_from_fallback_scan(cam)
-
+	var target := _target_from_interactor(cam)
 	if target.is_empty():
 		_hide_panel()
 		return
@@ -316,6 +313,39 @@ func _resolve_ui_host() -> Node:
 	return scene
 
 
+func _resolve_interactor() -> RayCast3D:
+	var tree := get_tree()
+	if tree == null:
+		return null
+
+	var scene := tree.current_scene
+	if scene == null:
+		return null
+
+	var candidates := [
+		"/root/Map/Core/Interactor",
+		"Core/Interactor",
+		"/root/Map/Core/Player/Interactor",
+		"Core/Player/Interactor",
+	]
+	for path in candidates:
+		var node := scene.get_node_or_null(path)
+		if node is RayCast3D:
+			return node as RayCast3D
+
+	return _find_interactor(scene)
+
+
+func _find_interactor(node: Node) -> RayCast3D:
+	if node is RayCast3D and node.name == "Interactor":
+		return node as RayCast3D
+	for child in node.get_children():
+		var found := _find_interactor(child)
+		if found != null:
+			return found
+	return null
+
+
 func _teardown_runtime() -> void:
 	_hide_panel()
 	_tracked.clear()
@@ -425,6 +455,29 @@ func _register_candidate(node: Node3D) -> void:
 	_tracked[id] = node
 	if not _selection_by_id.has(id):
 		_selection_by_id[id] = 0
+
+
+func _target_from_interactor(cam: Camera3D) -> Dictionary:
+	var interactor := _resolve_interactor()
+	if interactor == null:
+		return _target_from_cursor_raycast(cam)
+	if not interactor.is_colliding():
+		return {}
+
+	var collider: Variant = interactor.get_collider()
+	if not (collider is Node):
+		return {}
+
+	var container_node := _tracked_container_ancestor(collider as Node)
+	if container_node == null:
+		return {}
+
+	var target_point := interactor.get_collision_point()
+	var distance := cam.global_position.distance_to(target_point)
+	if distance > _candidate_range(container_node):
+		return {}
+
+	return _build_target_data(container_node, distance)
 
 
 func _target_from_cursor_raycast(cam: Camera3D) -> Dictionary:
