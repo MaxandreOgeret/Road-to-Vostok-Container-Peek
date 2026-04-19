@@ -31,6 +31,7 @@ var _ui_host: Node
 var _ui_theme: Theme
 var _ui_tile: Texture2D
 var _interactor: RayCast3D
+var _hud: Node
 
 
 func _process(delta: float) -> void:
@@ -335,6 +336,31 @@ func _resolve_interactor() -> RayCast3D:
 	return _interactor
 
 
+func _resolve_hud() -> Node:
+	if _hud != null and is_instance_valid(_hud):
+		return _hud
+
+	var tree := get_tree()
+	if tree == null:
+		return null
+
+	var scene := tree.current_scene
+	if scene == null:
+		return null
+
+	var candidates := [
+		"/root/Map/Core/UI/HUD",
+		"Core/UI/HUD",
+	]
+	for path in candidates:
+		var node := scene.get_node_or_null(path)
+		if node != null:
+			_hud = node
+			return _hud
+
+	return null
+
+
 func _find_interactor(node: Node) -> RayCast3D:
 	if node is RayCast3D and node.name == "Interactor":
 		return node as RayCast3D
@@ -360,6 +386,7 @@ func _teardown_runtime() -> void:
 	_hint_label = null
 	_ui_host = null
 	_interactor = null
+	_hud = null
 
 
 func _hide_panel() -> void:
@@ -453,6 +480,8 @@ func _target_from_interactor(cam: Camera3D) -> Dictionary:
 	var distance := cam.global_position.distance_to(target_point)
 	if distance > _candidate_range(container_node):
 		return {}
+	if not _hud_allows_container(container_node):
+		return {}
 
 	return _build_target_data(container_node, distance)
 
@@ -488,8 +517,43 @@ func _target_from_cursor_raycast(cam: Camera3D) -> Dictionary:
 	var distance := cam.global_position.distance_to(target_point)
 	if distance > _candidate_range(container_node):
 		return {}
+	if not _hud_allows_container(container_node):
+		return {}
 
 	return _build_target_data(container_node, distance)
+
+
+func _hud_allows_container(container_node: Node3D) -> bool:
+	var hud := _resolve_hud()
+	if hud == null:
+		return true
+
+	var target_name := _normalize_prompt_text(_debug_name(container_node))
+	if target_name.is_empty():
+		return true
+
+	return _hud_text_matches(hud, target_name)
+
+
+func _hud_text_matches(node: Node, target_name: String) -> bool:
+	if node is CanvasItem and not (node as CanvasItem).is_visible_in_tree():
+		return false
+
+	var text_value: Variant = node.get("text")
+	if text_value is String:
+		var text := _normalize_prompt_text(text_value as String)
+		if not text.is_empty() and text.contains(target_name):
+			return true
+
+	for child in node.get_children():
+		if _hud_text_matches(child, target_name):
+			return true
+
+	return false
+
+
+func _normalize_prompt_text(text: String) -> String:
+	return text.strip_edges().to_lower()
 
 
 # Some containers use child colliders that do not line up with the visual mesh,
