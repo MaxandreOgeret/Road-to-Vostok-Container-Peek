@@ -7,6 +7,11 @@ const PANEL_OFFSET := Vector2(18.0, 18.0)
 const SCREEN_PAD := 12.0
 const MAX_VISIBLE_ITEMS := 8
 const ITEM_ROW_HEIGHT := 20
+const ROW_SIDE_PAD := 2
+const ROW_PREFIX_WIDTH := 16.0
+const COL_SEPARATION := 8
+const WEIGHT_COL_WIDTH := 56.0
+const CONDITION_COL_WIDTH := 62.0
 const TRANSFER_ACTION := &"container_peek_transfer"
 const TAKE_ALL_ACTION := &"container_peek_take_all"
 
@@ -22,6 +27,8 @@ var _bootstrapped := false
 var _canvas: CanvasLayer
 var _panel: PanelContainer
 var _title_label: Label
+var _header_margin: MarginContainer
+var _header_row: Control
 var _item_scroll: ScrollContainer
 var _items_box: VBoxContainer
 var _hint_label: Label
@@ -154,6 +161,14 @@ func _build_ui(host: Node) -> void:
 	_title_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_title_label.add_theme_font_size_override("font_size", 13)
 	header.add_child(_title_label)
+
+	_header_margin = MarginContainer.new()
+	_header_margin.add_theme_constant_override("margin_left", ROW_SIDE_PAD)
+	_header_margin.add_theme_constant_override("margin_right", ROW_SIDE_PAD)
+	root.add_child(_header_margin)
+
+	_header_row = _make_header_row()
+	_header_margin.add_child(_header_row)
 
 	_item_scroll = ScrollContainer.new()
 	_item_scroll.theme = _ui_theme
@@ -379,9 +394,11 @@ func _teardown_runtime() -> void:
 	_canvas = null
 	_panel = null
 	_title_label = null
+	_header_margin = null
 	_item_scroll = null
 	_items_box = null
 	_hint_label = null
+	_header_row = null
 	_ui_host = null
 	_interactor = null
 	_hud = null
@@ -414,6 +431,7 @@ func _show_panel(data: Dictionary) -> void:
 
 	_panel.visible = true
 	_panel.size = _panel.get_combined_minimum_size()
+	_sync_header_alignment()
 
 	var screen := get_viewport().get_visible_rect().size
 	var pos := _cursor_screen_position() + PANEL_OFFSET
@@ -563,12 +581,12 @@ func _render_item_rows(node: Node) -> void:
 	if bool(node.get("locked")):
 		_items_box.add_child(_make_row("LOCKED", false, true))
 
-	var counts := _item_counts(node)
-	if counts.is_empty():
+	var summaries := _item_summaries(node)
+	if summaries.is_empty():
 		_items_box.add_child(_make_row("Empty", false, false))
 		return
 
-	var names: Array = counts.keys()
+	var names: Array = summaries.keys()
 	names.sort()
 	var selected_index := int(_selection_by_id.get(node.get_instance_id(), 0))
 	selected_index = clampi(selected_index, 0, maxi(names.size() - 1, 0))
@@ -577,9 +595,15 @@ func _render_item_rows(node: Node) -> void:
 	var selected_row: Control = null
 	for i in range(names.size()):
 		var item_name := str(names[i])
-		var amount := int(counts[item_name])
+		var summary := summaries[item_name] as Dictionary
+		var amount := int(summary.get("amount", 1))
 		var line_text := "%s x%d" % [item_name, amount] if amount > 1 else item_name
-		var row := _make_row(line_text, i == selected_index, false)
+		var row := _make_item_row(
+			line_text,
+			_format_weight(float(summary.get("weight", 0.0))),
+			str(summary.get("condition", "--")),
+			i == selected_index
+		)
 		_items_box.add_child(row)
 		if i == selected_index:
 			selected_row = row
@@ -634,6 +658,151 @@ func _make_row(text: String, selected: bool, status: bool) -> Control:
 	return row
 
 
+func _make_header_row() -> Control:
+	var row := HBoxContainer.new()
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_theme_constant_override("separation", COL_SEPARATION)
+
+	var prefix_spacer := Control.new()
+	prefix_spacer.custom_minimum_size = Vector2(ROW_PREFIX_WIDTH, 0.0)
+	row.add_child(prefix_spacer)
+
+	var item_label := Label.new()
+	item_label.theme = _ui_theme
+	item_label.text = "Item"
+	item_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	item_label.add_theme_font_size_override("font_size", 11)
+	item_label.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0, 0.5))
+	row.add_child(item_label)
+
+	var weight_label := Label.new()
+	weight_label.theme = _ui_theme
+	weight_label.text = "Weight"
+	weight_label.custom_minimum_size = Vector2(WEIGHT_COL_WIDTH, 0.0)
+	weight_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	weight_label.add_theme_font_size_override("font_size", 11)
+	weight_label.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0, 0.5))
+	row.add_child(weight_label)
+
+	var condition_label := Label.new()
+	condition_label.theme = _ui_theme
+	condition_label.text = "Cond."
+	condition_label.custom_minimum_size = Vector2(CONDITION_COL_WIDTH, 0.0)
+	condition_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	condition_label.add_theme_font_size_override("font_size", 11)
+	condition_label.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0, 0.5))
+	row.add_child(condition_label)
+
+	return row
+
+
+func _make_item_row(
+	text: String, weight_text: String, condition_text: String, selected: bool
+) -> Control:
+	var row := PanelContainer.new()
+	row.theme = _ui_theme
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.custom_minimum_size = Vector2(0.0, float(ITEM_ROW_HEIGHT))
+	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+
+	var style: StyleBox
+	if selected:
+		if _ui_tile != null:
+			var textured := StyleBoxTexture.new()
+			textured.texture = _ui_tile
+			textured.texture_margin_left = 1.0
+			textured.texture_margin_top = 1.0
+			textured.texture_margin_right = 1.0
+			textured.texture_margin_bottom = 1.0
+			textured.content_margin_left = ROW_SIDE_PAD
+			textured.content_margin_right = ROW_SIDE_PAD
+			textured.modulate_color = Color(1.0, 1.0, 1.0, 0.32)
+			style = textured
+		else:
+			var selected_fallback := StyleBoxFlat.new()
+			selected_fallback.bg_color = Color(0.2, 0.2, 0.2, 0.9)
+			selected_fallback.content_margin_left = ROW_SIDE_PAD
+			selected_fallback.content_margin_right = ROW_SIDE_PAD
+			style = selected_fallback
+	else:
+		var empty_style := StyleBoxEmpty.new()
+		empty_style.content_margin_left = ROW_SIDE_PAD
+		empty_style.content_margin_right = ROW_SIDE_PAD
+		style = empty_style
+	row.add_theme_stylebox_override("panel", style)
+
+	var box := HBoxContainer.new()
+	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	box.add_theme_constant_override("separation", COL_SEPARATION)
+	row.add_child(box)
+
+	var prefix_label := Label.new()
+	prefix_label.theme = _ui_theme
+	prefix_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	prefix_label.text = ">" if selected else ""
+	prefix_label.custom_minimum_size = Vector2(ROW_PREFIX_WIDTH, 0.0)
+	prefix_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	prefix_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	prefix_label.add_theme_font_size_override("font_size", 13)
+	prefix_label.add_theme_color_override(
+		"font_color", Color(1.0, 1.0, 1.0, 1.0) if selected else Color(1.0, 1.0, 1.0, 0.0)
+	)
+	box.add_child(prefix_label)
+
+	var name_label := Label.new()
+	name_label.theme = _ui_theme
+	name_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	name_label.text = text
+	name_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	name_label.add_theme_font_size_override("font_size", 13)
+	name_label.add_theme_color_override(
+		"font_color", Color(1.0, 1.0, 1.0, 1.0) if selected else Color(1.0, 1.0, 1.0, 0.78)
+	)
+	box.add_child(name_label)
+
+	var weight_label := Label.new()
+	weight_label.theme = _ui_theme
+	weight_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	weight_label.text = weight_text
+	weight_label.custom_minimum_size = Vector2(WEIGHT_COL_WIDTH, 0.0)
+	weight_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	weight_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	weight_label.add_theme_font_size_override("font_size", 12)
+	weight_label.add_theme_color_override(
+		"font_color", Color(1.0, 1.0, 1.0, 1.0) if selected else Color(1.0, 1.0, 1.0, 0.66)
+	)
+	box.add_child(weight_label)
+
+	var condition_label := Label.new()
+	condition_label.theme = _ui_theme
+	condition_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	condition_label.text = condition_text
+	condition_label.custom_minimum_size = Vector2(CONDITION_COL_WIDTH, 0.0)
+	condition_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	condition_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	condition_label.add_theme_font_size_override("font_size", 12)
+	condition_label.add_theme_color_override(
+		"font_color", Color(1.0, 1.0, 1.0, 1.0) if selected else Color(1.0, 1.0, 1.0, 0.66)
+	)
+	box.add_child(condition_label)
+
+	return row
+
+
+func _sync_header_alignment() -> void:
+	if _header_margin == null or _item_scroll == null:
+		return
+
+	var gutter := 0
+	var v_scroll := _item_scroll.get_v_scroll_bar()
+	if v_scroll != null and v_scroll.visible:
+		gutter = int(ceil(v_scroll.size.x))
+
+	_header_margin.add_theme_constant_override("margin_left", ROW_SIDE_PAD)
+	_header_margin.add_theme_constant_override("margin_right", ROW_SIDE_PAD + gutter)
+
+
 func _ensure_row_visible(row: Control) -> void:
 	if row == null or not is_instance_valid(row) or _item_scroll == null:
 		return
@@ -658,18 +827,43 @@ func _ensure_row_visible(row: Control) -> void:
 
 func _item_counts(node: Node) -> Dictionary:
 	var result: Dictionary = {}
+	var summaries := _item_summaries(node)
+	for item_name in summaries.keys():
+		var summary := summaries[item_name] as Dictionary
+		result[item_name] = int(summary.get("amount", 0))
+	return result
+
+
+func _item_summaries(node: Node) -> Dictionary:
+	var result: Dictionary = {}
 	for slot in _slot_source(node):
-		var item := _slot_item(slot)
-		if item == null or not (item is Object):
-			continue
-
-		var item_name := str((item as Object).get("name")).strip_edges()
-		if item_name.is_empty():
-			item_name = "Unknown Item"
-
+		var item_name := _slot_display_name(slot)
 		if not result.has(item_name):
-			result[item_name] = 0
-		result[item_name] = int(result[item_name]) + _slot_amount(slot)
+			result[item_name] = {
+				"amount": 0,
+				"weight": 0.0,
+				"condition_values": [],
+			}
+
+		var summary := result[item_name] as Dictionary
+		var amount := _slot_amount(slot)
+		summary["amount"] = int(summary.get("amount", 0)) + amount
+		summary["weight"] = float(summary.get("weight", 0.0)) + _slot_total_weight(slot)
+
+		var condition := _slot_condition_percent(slot)
+		if condition >= 0:
+			var values := summary.get("condition_values", []) as Array
+			values.append(condition)
+			summary["condition_values"] = values
+
+		result[item_name] = summary
+
+	for item_name in result.keys():
+		var summary := result[item_name] as Dictionary
+		summary["condition"] = _format_condition(summary.get("condition_values", []) as Array)
+		summary.erase("condition_values")
+		result[item_name] = summary
+
 	return result
 
 
@@ -703,6 +897,80 @@ func _slot_amount(slot: Variant) -> int:
 		if raw_dict is float:
 			return maxi(1, int(round(raw_dict)))
 	return 1
+
+
+func _slot_total_weight(slot: Variant) -> float:
+	var item := _slot_item(slot)
+	if item == null or not (item is Object):
+		return 0.0
+
+	var raw_weight: Variant = (item as Object).get("weight")
+	var unit_weight := 0.0
+	if raw_weight is float:
+		unit_weight = float(raw_weight)
+	elif raw_weight is int:
+		unit_weight = float(raw_weight)
+
+	return unit_weight * float(_slot_amount(slot))
+
+
+func _slot_condition_percent(slot: Variant) -> int:
+	var item := _slot_item(slot)
+	if not _item_uses_condition(item):
+		return -1
+
+	var raw: Variant = null
+	if slot is Object:
+		raw = (slot as Object).get("condition")
+	elif slot is Dictionary:
+		raw = (slot as Dictionary).get("condition", null)
+
+	if raw is float:
+		return _normalize_condition_percent(float(raw))
+	if raw is int:
+		return _normalize_condition_percent(float(raw))
+	return -1
+
+
+func _item_uses_condition(item: Variant) -> bool:
+	if item == null or not (item is Object):
+		return false
+
+	var item_object := item as Object
+	var item_type := str(item_object.get("type")).strip_edges()
+	var item_subtype := str(item_object.get("subtype")).strip_edges()
+
+	if item_subtype == "Magazine":
+		return false
+
+	return item_type in ["Weapon", "Armor", "Electronics"]
+
+
+func _normalize_condition_percent(value: float) -> int:
+	if value < 0.0:
+		return -1
+	var percent := value * 100.0 if value <= 1.0 else value
+	return clampi(int(round(percent)), 0, 100)
+
+
+func _format_weight(weight: float) -> String:
+	return "%.1fkg" % maxf(0.0, weight)
+
+
+func _format_condition(values: Array) -> String:
+	if values.is_empty():
+		return "--"
+
+	var min_value := int(values[0])
+	var max_value := int(values[0])
+	for value in values:
+		var percent := int(value)
+		min_value = mini(min_value, percent)
+		max_value = maxi(max_value, percent)
+
+	if min_value == max_value:
+		return "%d%%" % min_value
+	return "%d-%d%%" % [min_value, max_value]
 
 
 func _candidate_range(node: Node) -> float:
