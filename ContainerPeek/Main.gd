@@ -10,9 +10,6 @@ const AIM_RADIUS_PX := 95.0
 const MAX_VISIBLE_ITEMS := 8
 const ITEM_ROW_HEIGHT := 20
 const LABEL_Y_OFFSET := 1.05
-const SELECTED_ACCENT := "#7dd3fc"
-const DIM_COLOR := "#dbe4ea"
-const HINT_COLOR := "#9aaab4"
 const TRANSFER_KEY := KEY_F
 const TAKE_ALL_KEY := KEY_R
 
@@ -22,6 +19,9 @@ var _game_data: Resource
 var _selection_by_id: Dictionary = {}
 var _current_target_id := -1
 var _last_focus_node: Node3D
+var _last_render_target_id := -1
+var _last_render_selection := -1
+var _bootstrapped := false
 
 var _canvas: CanvasLayer
 var _panel: PanelContainer
@@ -29,17 +29,20 @@ var _title_label: Label
 var _item_scroll: ScrollContainer
 var _items_box: VBoxContainer
 var _hint_label: Label
+var _ui_host: Node
 var _ui_theme: Theme
 var _ui_tile: Texture2D
 
 
-func _ready() -> void:
-	process_mode = Node.PROCESS_MODE_ALWAYS
-	_build_ui()
-	call_deferred("_rescan")
-
-
 func _process(delta: float) -> void:
+	if _bootstrapped and not _runtime_ready():
+		_teardown_runtime()
+		return
+
+	if not _bootstrapped:
+		_try_bootstrap()
+		return
+
 	_scan_left -= delta
 	if _scan_left <= 0.0:
 		_rescan()
@@ -66,6 +69,10 @@ func _process(delta: float) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if not _bootstrapped:
+		return
+	if _panel == null:
+		return
 	if not _panel.visible or _current_target_id == -1:
 		return
 
@@ -106,16 +113,14 @@ func _unhandled_input(event: InputEvent) -> void:
 	get_viewport().set_input_as_handled()
 
 
-func _build_ui() -> void:
-	if ResourceLoader.exists(UI_THEME_RES):
-		_ui_theme = load(UI_THEME_RES) as Theme
-	if ResourceLoader.exists(UI_TILE_RES):
-		_ui_tile = load(UI_TILE_RES) as Texture2D
+func _build_ui(host: Node) -> void:
+	_ui_host = host
+	_load_ui_assets()
 
 	_canvas = CanvasLayer.new()
 	_canvas.layer = 110
 	_canvas.name = "ContainerPeekCanvas"
-	add_child(_canvas)
+	host.add_child(_canvas)
 
 	_panel = PanelContainer.new()
 	_panel.theme = _ui_theme
@@ -140,14 +145,14 @@ func _build_ui() -> void:
 
 	var header := ColorRect.new()
 	header.custom_minimum_size = Vector2(0.0, 28.0)
-	header.color = Color(1.0, 1.0, 1.0, 0.047)
+	header.color = Color(1.0, 1.0, 1.0, 0.05)
 	root.add_child(header)
 
 	_title_label = Label.new()
 	_title_label.theme = _ui_theme
 	_title_label.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
-	_title_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_title_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_title_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_title_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_title_label.add_theme_font_size_override("font_size", 13)
@@ -174,6 +179,13 @@ func _build_ui() -> void:
 	_hint_label.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0, 0.5))
 	_hint_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	root.add_child(_hint_label)
+
+
+func _load_ui_assets() -> void:
+	if _ui_theme == null and ResourceLoader.exists(UI_THEME_RES):
+		_ui_theme = load(UI_THEME_RES) as Theme
+	if _ui_tile == null and ResourceLoader.exists(UI_TILE_RES):
+		_ui_tile = load(UI_TILE_RES) as Texture2D
 
 
 func _make_divider() -> ColorRect:
@@ -204,20 +216,87 @@ func _make_panel_style() -> StyleBox:
 	return fallback
 
 
+func _try_bootstrap() -> bool:
+	var host := _resolve_ui_host()
+	if host == null:
+		return false
+
+	if _canvas != null and is_instance_valid(_canvas):
+		return false
+
+	# The overlay only matters once the world UI and camera both exist.
+	_build_ui(host)
+	_scan_left = 0.0
+	_bootstrapped = true
+	return true
+
+
+func _runtime_ready() -> bool:
+	var host := _resolve_ui_host()
+	if host == null:
+		return false
+	if _ui_host == null or host != _ui_host:
+		return false
+	if _canvas == null or not is_instance_valid(_canvas):
+		return false
+	return true
+
+
+func _resolve_ui_host() -> Node:
+	var tree := get_tree()
+	if tree == null:
+		return null
+
+	var scene := tree.current_scene
+	var interface_node := _resolve_interface_node()
+	var camera := get_viewport().get_camera_3d()
+	if scene == null or interface_node == null or camera == null:
+		return null
+	# Bind the overlay to the active scene so scene changes fully tear it down.
+	if not scene.is_ancestor_of(interface_node):
+		return null
+	return scene
+
+
+func _teardown_runtime() -> void:
+	_hide_panel()
+	_tracked.clear()
+	_last_focus_node = null
+	_bootstrapped = false
+	_scan_left = 0.0
+	if _canvas != null and is_instance_valid(_canvas):
+		_canvas.queue_free()
+	_canvas = null
+	_panel = null
+	_title_label = null
+	_item_scroll = null
+	_items_box = null
+	_hint_label = null
+	_ui_host = null
+
+
 func _hide_panel() -> void:
 	_current_target_id = -1
 	_last_focus_node = null
+	_last_render_target_id = -1
+	_last_render_selection = -1
+	if _panel == null:
+		return
 	_panel.visible = false
 
 
 func _show_panel(data: Dictionary) -> void:
+	if _panel == null or _title_label == null:
+		return
 	_current_target_id = int(data.get("id", -1))
 	var focused := _tracked.get(_current_target_id, null)
 	_last_focus_node = focused as Node3D if focused is Node3D else null
 	_title_label.text = str(data.get("title", "Container"))
 
-	if _last_focus_node != null:
+	if _last_focus_node != null and _should_rerender_rows():
 		_render_item_rows(_last_focus_node)
+		_last_render_target_id = _current_target_id
+		_last_render_selection = int(_selection_by_id.get(_current_target_id, 0))
 
 	_panel.visible = true
 	_panel.size = _panel.get_combined_minimum_size()
@@ -229,12 +308,25 @@ func _show_panel(data: Dictionary) -> void:
 	_panel.position = pos
 
 
+func _should_rerender_rows() -> bool:
+	if _current_target_id != _last_render_target_id:
+		return true
+	return int(_selection_by_id.get(_current_target_id, 0)) != _last_render_selection
+
+
 func _rescan() -> void:
 	_tracked.clear()
-	var root := get_tree().root
+	var root := _current_scan_root()
 	if root == null:
 		return
 	_scan_node(root)
+
+
+func _current_scan_root() -> Node:
+	var tree := get_tree()
+	if tree == null:
+		return null
+	return tree.current_scene
 
 
 func _scan_node(node: Node) -> void:
@@ -371,6 +463,8 @@ func _tracked_container_ancestor(node: Node) -> Node3D:
 
 
 func _render_item_rows(node: Node) -> void:
+	if _items_box == null:
+		return
 	for child in _items_box.get_children():
 		child.queue_free()
 
@@ -449,7 +543,7 @@ func _make_row(text: String, selected: bool, status: bool) -> Control:
 
 
 func _ensure_row_visible(row: Control) -> void:
-	if row == null or not is_instance_valid(row):
+	if row == null or not is_instance_valid(row) or _item_scroll == null:
 		return
 
 	await get_tree().process_frame
@@ -627,6 +721,7 @@ func _try_take_all_selected_container() -> bool:
 
 	if moved_any and _current_target_id != -1:
 		_selection_by_id[_current_target_id] = 0
+		_last_render_target_id = -1
 	return moved_any
 
 
@@ -655,6 +750,7 @@ func _try_direct_slot_transfer(container_node: Node, slot: Variant) -> bool:
 		return false
 
 	_remove_slot_from_container(container_node, slot)
+	_last_render_target_id = -1
 	if interface_node.has_method("Reset"):
 		interface_node.call("Reset")
 	return true
