@@ -1,5 +1,9 @@
 # Container Peek
 
+<p align="center">
+  <img src="doc/screenshot.png" alt="Container Peek screenshot" />
+</p>
+
 `Container Peek` is a `Road to Vostok` mod that shows a compact loot window when you aim at a container inside interaction range.
 
 ## Features
