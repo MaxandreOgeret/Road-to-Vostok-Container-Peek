@@ -1,0 +1,8 @@
+[mod]
+name="Container Peek"
+id="container_peek"
+version="1.0.0"
+priority=10
+
+[autoload]
+ContainerPeek="res://ContainerPeek/Main.gd"
