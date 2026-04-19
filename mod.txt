@@ -5,4 +5,5 @@ version="1.0.0"
 priority=10
 
 [autoload]
+ContainerPeekConfig="res://ContainerPeek/Config.gd"
 ContainerPeek="res://ContainerPeek/Main.gd"

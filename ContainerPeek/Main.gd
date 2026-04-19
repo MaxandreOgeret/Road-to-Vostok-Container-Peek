@@ -10,8 +10,8 @@ const AIM_RADIUS_PX := 95.0
 const MAX_VISIBLE_ITEMS := 8
 const ITEM_ROW_HEIGHT := 20
 const LABEL_Y_OFFSET := 1.05
-const TRANSFER_KEY := KEY_F
-const TAKE_ALL_KEY := KEY_R
+const TRANSFER_ACTION := &"container_peek_transfer"
+const TAKE_ALL_ACTION := &"container_peek_take_all"
 
 var _scan_left := 0.0
 var _tracked: Dictionary = {}
@@ -76,13 +76,14 @@ func _unhandled_input(event: InputEvent) -> void:
 	if not _panel.visible or _current_target_id == -1:
 		return
 
-	if event is InputEventKey:
-		var key_event := event as InputEventKey
-		if key_event.pressed and not key_event.echo:
-			if key_event.keycode == TRANSFER_KEY and _try_transfer_selected():
-				get_viewport().set_input_as_handled()
-			elif key_event.keycode == TAKE_ALL_KEY and _try_take_all_selected_container():
-				get_viewport().set_input_as_handled()
+	if _is_action_event_pressed(event, TRANSFER_ACTION):
+		if _try_transfer_selected():
+			get_viewport().set_input_as_handled()
+		return
+
+	if _is_action_event_pressed(event, TAKE_ALL_ACTION):
+		if _try_take_all_selected_container():
+			get_viewport().set_input_as_handled()
 		return
 
 	if not (event is InputEventMouseButton):
@@ -111,6 +112,12 @@ func _unhandled_input(event: InputEvent) -> void:
 	var current := int(_selection_by_id.get(_current_target_id, 0))
 	_selection_by_id[_current_target_id] = posmod(current + direction, item_count)
 	get_viewport().set_input_as_handled()
+
+
+func _is_action_event_pressed(event: InputEvent, action_name: StringName) -> bool:
+	if event is InputEventKey and (event as InputEventKey).echo:
+		return false
+	return event.is_action_pressed(action_name, false)
 
 
 func _build_ui(host: Node) -> void:
@@ -174,7 +181,7 @@ func _build_ui(host: Node) -> void:
 
 	_hint_label = Label.new()
 	_hint_label.theme = _ui_theme
-	_hint_label.text = "Wheel: Scroll   F: Transfer   R: Take All"
+	_hint_label.text = _hint_text()
 	_hint_label.add_theme_font_size_override("font_size", 12)
 	_hint_label.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0, 0.5))
 	_hint_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -186,6 +193,57 @@ func _load_ui_assets() -> void:
 		_ui_theme = load(UI_THEME_RES) as Theme
 	if _ui_tile == null and ResourceLoader.exists(UI_TILE_RES):
 		_ui_tile = load(UI_TILE_RES) as Texture2D
+
+
+func _hint_text() -> String:
+	return (
+		"Wheel: Scroll   %s: Transfer   %s: Take All"
+		% [
+			_binding_label(TRANSFER_ACTION),
+			_binding_label(TAKE_ALL_ACTION),
+		]
+	)
+
+
+func _binding_label(action_name: StringName) -> String:
+	var config_node := get_node_or_null("/root/ContainerPeekConfig")
+	if config_node != null and config_node.has_method("get_binding_label"):
+		return str(config_node.call("get_binding_label", action_name))
+
+	var events := InputMap.action_get_events(action_name)
+	if events.is_empty():
+		return ""
+
+	var event := events[0]
+	if event is InputEventMouseButton:
+		return _mouse_button_text((event as InputEventMouseButton).button_index)
+	if event is InputEventKey:
+		return _clean_key_label((event as InputEventKey).as_text())
+	return ""
+
+
+func _mouse_button_text(button_index: int) -> String:
+	match button_index:
+		MOUSE_BUTTON_LEFT:
+			return "Left Mouse Button"
+		MOUSE_BUTTON_RIGHT:
+			return "Right Mouse Button"
+		MOUSE_BUTTON_MIDDLE:
+			return "Middle Mouse Button"
+		MOUSE_BUTTON_WHEEL_DOWN:
+			return "Mouse Wheel Down"
+		MOUSE_BUTTON_WHEEL_UP:
+			return "Mouse Wheel Up"
+		MOUSE_BUTTON_XBUTTON1:
+			return "Mouse Button 1"
+		MOUSE_BUTTON_XBUTTON2:
+			return "Mouse Button 2"
+		_:
+			return "Mouse %d" % button_index
+
+
+func _clean_key_label(label: String) -> String:
+	return label.replace(" (Physical)", "").replace(" - Physical", "")
 
 
 func _make_divider() -> ColorRect:
@@ -292,6 +350,8 @@ func _show_panel(data: Dictionary) -> void:
 	var focused := _tracked.get(_current_target_id, null)
 	_last_focus_node = focused as Node3D if focused is Node3D else null
 	_title_label.text = str(data.get("title", "Container"))
+	if _hint_label != null:
+		_hint_label.text = _hint_text()
 
 	if _last_focus_node != null and _should_rerender_rows():
 		_render_item_rows(_last_focus_node)
