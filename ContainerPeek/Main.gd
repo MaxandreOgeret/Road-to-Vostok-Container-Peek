@@ -1,5 +1,7 @@
 extends Node
 
+const ConfigSupport = preload("res://ContainerPeek/ConfigSupport.gd")
+const ItemSupport = preload("res://ContainerPeek/ItemSupport.gd")
 const GAME_DATA_RES := "res://Resources/GameData.tres"
 const UI_THEME_RES := "res://UI/Themes/Theme.tres"
 const UI_TILE_RES := "res://UI/Sprites/Tile.png"
@@ -22,13 +24,13 @@ var _current_target_id := -1
 var _last_focus_node: Node3D
 var _last_render_target_id := -1
 var _last_render_selection := -1
+var _last_render_rarity_colors := true
 var _bootstrapped := false
 
 var _canvas: CanvasLayer
 var _panel: PanelContainer
 var _title_label: Label
 var _header_margin: MarginContainer
-var _header_row: Control
 var _item_scroll: ScrollContainer
 var _items_box: VBoxContainer
 var _hint_label: Label
@@ -102,7 +104,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	if not (node is Node):
 		return
 
-	var item_count := _selectable_item_count(node as Node)
+	var item_count := ItemSupport.selectable_item_count(node as Node)
 	if item_count <= 0:
 		return
 
@@ -167,8 +169,7 @@ func _build_ui(host: Node) -> void:
 	_header_margin.add_theme_constant_override("margin_right", ROW_SIDE_PAD)
 	root.add_child(_header_margin)
 
-	_header_row = _make_header_row()
-	_header_margin.add_child(_header_row)
+	_header_margin.add_child(_make_header_row())
 
 	_item_scroll = ScrollContainer.new()
 	_item_scroll.theme = _ui_theme
@@ -204,51 +205,10 @@ func _hint_text() -> String:
 	return (
 		"Wheel: Scroll   %s: Transfer   %s: Take All"
 		% [
-			_binding_label(TRANSFER_ACTION),
-			_binding_label(TAKE_ALL_ACTION),
+			ConfigSupport.binding_label(self, TRANSFER_ACTION),
+			ConfigSupport.binding_label(self, TAKE_ALL_ACTION),
 		]
 	)
-
-
-func _binding_label(action_name: StringName) -> String:
-	var config_node := get_node_or_null("/root/ContainerPeekConfig")
-	if config_node != null and config_node.has_method("get_binding_label"):
-		return str(config_node.call("get_binding_label", action_name))
-
-	var events := InputMap.action_get_events(action_name)
-	if events.is_empty():
-		return ""
-
-	var event := events[0]
-	if event is InputEventMouseButton:
-		return _mouse_button_text((event as InputEventMouseButton).button_index)
-	if event is InputEventKey:
-		return _clean_key_label((event as InputEventKey).as_text())
-	return ""
-
-
-func _mouse_button_text(button_index: int) -> String:
-	match button_index:
-		MOUSE_BUTTON_LEFT:
-			return "Left Mouse Button"
-		MOUSE_BUTTON_RIGHT:
-			return "Right Mouse Button"
-		MOUSE_BUTTON_MIDDLE:
-			return "Middle Mouse Button"
-		MOUSE_BUTTON_WHEEL_DOWN:
-			return "Mouse Wheel Down"
-		MOUSE_BUTTON_WHEEL_UP:
-			return "Mouse Wheel Up"
-		MOUSE_BUTTON_XBUTTON1:
-			return "Mouse Button 1"
-		MOUSE_BUTTON_XBUTTON2:
-			return "Mouse Button 2"
-		_:
-			return "Mouse %d" % button_index
-
-
-func _clean_key_label(label: String) -> String:
-	return label.replace(" (Physical)", "").replace(" - Physical", "")
 
 
 func _make_divider() -> ColorRect:
@@ -398,7 +358,6 @@ func _teardown_runtime() -> void:
 	_item_scroll = null
 	_items_box = null
 	_hint_label = null
-	_header_row = null
 	_ui_host = null
 	_interactor = null
 	_hud = null
@@ -409,6 +368,7 @@ func _hide_panel() -> void:
 	_last_focus_node = null
 	_last_render_target_id = -1
 	_last_render_selection = -1
+	_last_render_rarity_colors = true
 	if _panel == null:
 		return
 	_panel.visible = false
@@ -428,6 +388,7 @@ func _show_panel(data: Dictionary) -> void:
 		_render_item_rows(_last_focus_node)
 		_last_render_target_id = _current_target_id
 		_last_render_selection = int(_selection_by_id.get(_current_target_id, 0))
+		_last_render_rarity_colors = _rarity_colors_enabled()
 
 	_panel.visible = true
 	_panel.size = _panel.get_combined_minimum_size()
@@ -443,7 +404,9 @@ func _show_panel(data: Dictionary) -> void:
 func _should_rerender_rows() -> bool:
 	if _current_target_id != _last_render_target_id:
 		return true
-	return int(_selection_by_id.get(_current_target_id, 0)) != _last_render_selection
+	if int(_selection_by_id.get(_current_target_id, 0)) != _last_render_selection:
+		return true
+	return _rarity_colors_enabled() != _last_render_rarity_colors
 
 
 func _looks_like_container(node: Node) -> bool:
@@ -494,7 +457,7 @@ func _target_from_interactor(cam: Camera3D) -> Dictionary:
 
 	var target_point := interactor.get_collision_point()
 	var distance := cam.global_position.distance_to(target_point)
-	if distance > _candidate_range(container_node):
+	if distance > ItemSupport.candidate_range(container_node):
 		return {}
 	if not _hud_allows_container(container_node):
 		return {}
@@ -539,7 +502,6 @@ func _build_target_data(node: Node3D, distance: float) -> Dictionary:
 	return {
 		"id": node.get_instance_id(),
 		"title": "%s  %.1fm" % [_debug_name(node), distance],
-		"score": 0.0,
 	}
 
 
@@ -581,7 +543,7 @@ func _render_item_rows(node: Node) -> void:
 	if bool(node.get("locked")):
 		_items_box.add_child(_make_row("LOCKED", false, true))
 
-	var summaries := _item_summaries(node)
+	var summaries := ItemSupport.item_summaries(node)
 	if summaries.is_empty():
 		_items_box.add_child(_make_row("Empty", false, false))
 		return
@@ -600,8 +562,11 @@ func _render_item_rows(node: Node) -> void:
 		var line_text := "%s x%d" % [item_name, amount] if amount > 1 else item_name
 		var row := _make_item_row(
 			line_text,
-			_format_weight(float(summary.get("weight", 0.0))),
+			ItemSupport.format_weight(float(summary.get("weight", 0.0))),
 			str(summary.get("condition", "--")),
+			ItemSupport.rarity_color(
+				str(summary.get("rarity", ItemSupport.RARITY_COMMON)), _rarity_colors_enabled()
+			),
 			i == selected_index
 		)
 		_items_box.add_child(row)
@@ -697,7 +662,7 @@ func _make_header_row() -> Control:
 
 
 func _make_item_row(
-	text: String, weight_text: String, condition_text: String, selected: bool
+	text: String, weight_text: String, condition_text: String, rarity_color: Color, selected: bool
 ) -> Control:
 	var row := PanelContainer.new()
 	row.theme = _ui_theme
@@ -757,7 +722,7 @@ func _make_item_row(
 	name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	name_label.add_theme_font_size_override("font_size", 13)
 	name_label.add_theme_color_override(
-		"font_color", Color(1.0, 1.0, 1.0, 1.0) if selected else Color(1.0, 1.0, 1.0, 0.78)
+		"font_color", Color(1.0, 1.0, 1.0, 1.0) if selected else rarity_color
 	)
 	box.add_child(name_label)
 
@@ -825,171 +790,8 @@ func _ensure_row_visible(row: Control) -> void:
 	_item_scroll.scroll_vertical = maxi(0, target_scroll)
 
 
-func _item_counts(node: Node) -> Dictionary:
-	var result: Dictionary = {}
-	var summaries := _item_summaries(node)
-	for item_name in summaries.keys():
-		var summary := summaries[item_name] as Dictionary
-		result[item_name] = int(summary.get("amount", 0))
-	return result
-
-
-func _item_summaries(node: Node) -> Dictionary:
-	var result: Dictionary = {}
-	for slot in _slot_source(node):
-		var item_name := _slot_display_name(slot)
-		if not result.has(item_name):
-			result[item_name] = {
-				"amount": 0,
-				"weight": 0.0,
-				"condition_values": [],
-			}
-
-		var summary := result[item_name] as Dictionary
-		var amount := _slot_amount(slot)
-		summary["amount"] = int(summary.get("amount", 0)) + amount
-		summary["weight"] = float(summary.get("weight", 0.0)) + _slot_total_weight(slot)
-
-		var condition := _slot_condition_percent(slot)
-		if condition >= 0:
-			var values := summary.get("condition_values", []) as Array
-			values.append(condition)
-			summary["condition_values"] = values
-
-		result[item_name] = summary
-
-	for item_name in result.keys():
-		var summary := result[item_name] as Dictionary
-		summary["condition"] = _format_condition(summary.get("condition_values", []) as Array)
-		summary.erase("condition_values")
-		result[item_name] = summary
-
-	return result
-
-
-func _slot_source(node: Node) -> Array:
-	var storaged := bool(node.get("storaged"))
-	var source: Variant = node.get("storage") if storaged else node.get("loot")
-	if source is Array:
-		return source
-	return []
-
-
-func _slot_item(slot: Variant) -> Variant:
-	if slot is Object:
-		return (slot as Object).get("itemData")
-	if slot is Dictionary:
-		return (slot as Dictionary).get("itemData", null)
-	return null
-
-
-func _slot_amount(slot: Variant) -> int:
-	if slot is Object:
-		var raw: Variant = (slot as Object).get("amount")
-		if raw is int:
-			return maxi(1, int(raw))
-		if raw is float:
-			return maxi(1, int(round(raw)))
-	elif slot is Dictionary:
-		var raw_dict: Variant = (slot as Dictionary).get("amount", 1)
-		if raw_dict is int:
-			return maxi(1, int(raw_dict))
-		if raw_dict is float:
-			return maxi(1, int(round(raw_dict)))
-	return 1
-
-
-func _slot_total_weight(slot: Variant) -> float:
-	var item := _slot_item(slot)
-	if item == null or not (item is Object):
-		return 0.0
-
-	var raw_weight: Variant = (item as Object).get("weight")
-	var unit_weight := 0.0
-	if raw_weight is float:
-		unit_weight = float(raw_weight)
-	elif raw_weight is int:
-		unit_weight = float(raw_weight)
-
-	return unit_weight * float(_slot_amount(slot))
-
-
-func _slot_condition_percent(slot: Variant) -> int:
-	var item := _slot_item(slot)
-	if not _item_uses_condition(item):
-		return -1
-
-	var raw: Variant = null
-	if slot is Object:
-		raw = (slot as Object).get("condition")
-	elif slot is Dictionary:
-		raw = (slot as Dictionary).get("condition", null)
-
-	if raw is float:
-		return _normalize_condition_percent(float(raw))
-	if raw is int:
-		return _normalize_condition_percent(float(raw))
-	return -1
-
-
-func _item_uses_condition(item: Variant) -> bool:
-	if item == null or not (item is Object):
-		return false
-
-	var item_object := item as Object
-	var item_type := str(item_object.get("type")).strip_edges()
-	var item_subtype := str(item_object.get("subtype")).strip_edges()
-
-	if item_subtype == "Magazine":
-		return false
-
-	return item_type in ["Weapon", "Armor", "Electronics"]
-
-
-func _normalize_condition_percent(value: float) -> int:
-	if value < 0.0:
-		return -1
-	var percent := value * 100.0 if value <= 1.0 else value
-	return clampi(int(round(percent)), 0, 100)
-
-
-func _format_weight(weight: float) -> String:
-	return "%.1fkg" % maxf(0.0, weight)
-
-
-func _format_condition(values: Array) -> String:
-	if values.is_empty():
-		return "--"
-
-	var min_value := int(values[0])
-	var max_value := int(values[0])
-	for value in values:
-		var percent := int(value)
-		min_value = mini(min_value, percent)
-		max_value = maxi(max_value, percent)
-
-	if min_value == max_value:
-		return "%d%%" % min_value
-	return "%d-%d%%" % [min_value, max_value]
-
-
-func _candidate_range(node: Node) -> float:
-	var keys: Array[StringName] = [
-		&"interactionDistance",
-		&"interactionRange",
-		&"interactDistance",
-		&"interactRange",
-		&"maxDistance",
-		&"maxRange",
-		&"range",
-	]
-	for key in keys:
-		var value: Variant = node.get(key)
-		if value is float:
-			return maxf(0.1, float(value))
-		if value is int:
-			return maxf(0.1, float(value))
-	return 2.5
+func _rarity_colors_enabled() -> bool:
+	return ConfigSupport.bool_setting(self, "rarity_colors", true)
 
 
 func _cursor_screen_position() -> Vector2:
@@ -1037,7 +839,7 @@ func _try_take_all_selected_container() -> bool:
 
 	var moved_any := false
 	while true:
-		var slots := _slot_source(_last_focus_node)
+		var slots := ItemSupport.slot_source(_last_focus_node)
 		if slots.is_empty():
 			break
 		if not _try_direct_slot_transfer(_last_focus_node, slots[0]):
@@ -1051,7 +853,7 @@ func _try_take_all_selected_container() -> bool:
 
 
 func _try_direct_selected_transfer(container_node: Node) -> bool:
-	var slot := _selected_slot(container_node)
+	var slot := ItemSupport.selected_slot(container_node, _selection_by_id)
 	if slot == null:
 		return false
 	return _try_direct_slot_transfer(container_node, slot)
@@ -1074,7 +876,7 @@ func _try_direct_slot_transfer(container_node: Node, slot: Variant) -> bool:
 		_play_error_beep(interface_node)
 		return false
 
-	_remove_slot_from_container(container_node, slot)
+	ItemSupport.remove_slot_from_container(container_node, slot)
 	_last_render_target_id = -1
 	if interface_node.has_method("Reset"):
 		interface_node.call("Reset")
@@ -1115,54 +917,3 @@ func _resolve_inventory_grid(interface_node: Node) -> Node:
 	if inventory != null:
 		return inventory.get_node_or_null("Grid")
 	return null
-
-
-# The preview collapses identical names into one row, so transfer resolves the first matching stack.
-func _selected_slot(container_node: Node) -> Variant:
-	var selected_name := _selected_item_name(container_node)
-	if selected_name.is_empty():
-		return null
-
-	for slot in _slot_source(container_node):
-		if _slot_display_name(slot) == selected_name:
-			return slot
-	return null
-
-
-func _selected_item_name(container_node: Node) -> String:
-	var counts := _item_counts(container_node)
-	if counts.is_empty():
-		return ""
-
-	var names: Array = counts.keys()
-	names.sort()
-	var selected_index := int(_selection_by_id.get(container_node.get_instance_id(), 0))
-	selected_index = clampi(selected_index, 0, maxi(names.size() - 1, 0))
-	return str(names[selected_index])
-
-
-func _slot_display_name(slot: Variant) -> String:
-	var item := _slot_item(slot)
-	if item == null or not (item is Object):
-		return "Unknown Item"
-
-	var item_name := str((item as Object).get("name")).strip_edges()
-	if item_name.is_empty():
-		return "Unknown Item"
-	return item_name
-
-
-func _remove_slot_from_container(container_node: Node, slot: Variant) -> void:
-	var storaged := bool(container_node.get("storaged"))
-	var property_name := "storage" if storaged else "loot"
-	var source := _slot_source(container_node)
-	var index := source.find(slot)
-	if index == -1:
-		return
-
-	source.remove_at(index)
-	container_node.set(property_name, source)
-
-
-func _selectable_item_count(node: Node) -> int:
-	return _item_counts(node).size()

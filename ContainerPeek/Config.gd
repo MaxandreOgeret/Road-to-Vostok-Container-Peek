@@ -1,5 +1,7 @@
 extends Node
 
+const ConfigSupport = preload("res://ContainerPeek/ConfigSupport.gd")
+
 const MOD_ID := "ContainerPeek"
 const MOD_NAME := "Container Peek"
 const CONFIG_DIR := "user://MCM/%s" % MOD_ID
@@ -8,6 +10,7 @@ const MCM_HELPERS_RES := "res://ModConfigurationMenu/Scripts/Doink Oink/MCM_Help
 
 const TRANSFER_ACTION := &"container_peek_transfer"
 const TAKE_ALL_ACTION := &"container_peek_take_all"
+const RARITY_COLORS_KEY := "rarity_colors"
 
 var _config := ConfigFile.new()
 var _mcm_helpers: Resource
@@ -45,11 +48,14 @@ func _ready() -> void:
 
 func get_binding_label(action_name: StringName) -> String:
 	var event := _input_event_from_data(_binding_data(action_name))
-	if event is InputEventMouseButton:
-		return _mouse_button_text((event as InputEventMouseButton).button_index)
-	if event is InputEventKey:
-		return _clean_key_label((event as InputEventKey).as_text())
-	return ""
+	return ConfigSupport.event_label(event)
+
+
+func get_bool(setting_key: String, default_value: bool = false) -> bool:
+	var value: Variant = _config.get_value("Bool", setting_key, default_value)
+	if value is Dictionary:
+		return bool((value as Dictionary).get("value", default_value))
+	return bool(value)
 
 
 func _on_config_saved(config: ConfigFile) -> void:
@@ -94,6 +100,20 @@ func _build_default_config() -> ConfigFile:
 				"value": KEY_R,
 				"type": "Key",
 				"menu_pos": 20,
+			}
+		)
+	)
+	(
+		config
+		. set_value(
+			"Bool",
+			RARITY_COLORS_KEY,
+			{
+				"name": "Rarity Colors",
+				"tooltip": "Color item names by rarity in the preview list.",
+				"default": true,
+				"value": true,
+				"menu_pos": 30,
 			}
 		)
 	)
@@ -154,27 +174,3 @@ func _set_action(action_name: StringName, event: InputEvent) -> void:
 	InputMap.action_erase_events(action_name)
 	if event != null:
 		InputMap.action_add_event(action_name, event)
-
-
-func _mouse_button_text(button_index: int) -> String:
-	match button_index:
-		MOUSE_BUTTON_LEFT:
-			return "Left Mouse Button"
-		MOUSE_BUTTON_RIGHT:
-			return "Right Mouse Button"
-		MOUSE_BUTTON_MIDDLE:
-			return "Middle Mouse Button"
-		MOUSE_BUTTON_WHEEL_DOWN:
-			return "Mouse Wheel Down"
-		MOUSE_BUTTON_WHEEL_UP:
-			return "Mouse Wheel Up"
-		MOUSE_BUTTON_XBUTTON1:
-			return "Mouse Button 1"
-		MOUSE_BUTTON_XBUTTON2:
-			return "Mouse Button 2"
-		_:
-			return "Mouse %d" % button_index
-
-
-func _clean_key_label(label: String) -> String:
-	return label.replace(" (Physical)", "").replace(" - Physical", "")
