@@ -5,10 +5,8 @@ const UI_THEME_RES := "res://UI/Themes/Theme.tres"
 const UI_TILE_RES := "res://UI/Sprites/Tile.png"
 const PANEL_OFFSET := Vector2(18.0, 18.0)
 const SCREEN_PAD := 12.0
-const AIM_RADIUS_PX := 95.0
 const MAX_VISIBLE_ITEMS := 8
 const ITEM_ROW_HEIGHT := 20
-const LABEL_Y_OFFSET := 1.05
 const TRANSFER_ACTION := &"container_peek_transfer"
 const TAKE_ALL_ACTION := &"container_peek_take_all"
 
@@ -464,7 +462,7 @@ func _register_candidate(node: Node3D) -> void:
 func _target_from_interactor(cam: Camera3D) -> Dictionary:
 	var interactor := _resolve_interactor()
 	if interactor == null:
-		return _target_from_cursor_raycast(cam)
+		return {}
 	if not interactor.is_colliding():
 		return {}
 
@@ -477,43 +475,6 @@ func _target_from_interactor(cam: Camera3D) -> Dictionary:
 		return {}
 
 	var target_point := interactor.get_collision_point()
-	var distance := cam.global_position.distance_to(target_point)
-	if distance > _candidate_range(container_node):
-		return {}
-	if not _hud_allows_container(container_node):
-		return {}
-
-	return _build_target_data(container_node, distance)
-
-
-func _target_from_cursor_raycast(cam: Camera3D) -> Dictionary:
-	var world := cam.get_world_3d()
-	if world == null:
-		return {}
-
-	var cursor := _cursor_screen_position()
-	var origin := cam.project_ray_origin(cursor)
-	var direction := cam.project_ray_normal(cursor)
-	var query := PhysicsRayQueryParameters3D.create(origin, origin + direction * 8.0)
-	query.collide_with_areas = true
-	query.collide_with_bodies = true
-	query.collision_mask = 0xFFFFFFFF
-	query.exclude = _player_rids_for_camera(cam)
-
-	var hit := world.direct_space_state.intersect_ray(query)
-	if hit.is_empty():
-		return {}
-
-	var collider: Variant = hit.get("collider", null)
-	if not (collider is Node):
-		return {}
-
-	var container_node := _resolve_container_from_node(collider as Node)
-	if container_node == null:
-		return {}
-
-	var hit_position: Variant = hit.get("position", container_node.global_position)
-	var target_point := hit_position if hit_position is Vector3 else container_node.global_position
 	var distance := cam.global_position.distance_to(target_point)
 	if distance > _candidate_range(container_node):
 		return {}
@@ -554,46 +515,6 @@ func _hud_text_matches(node: Node, target_name: String) -> bool:
 
 func _normalize_prompt_text(text: String) -> String:
 	return text.strip_edges().to_lower()
-
-
-# Some containers use child colliders that do not line up with the visual mesh,
-# so the anchor fallback keeps the menu available when the direct ray misses.
-func _target_from_fallback_scan(cam: Camera3D) -> Dictionary:
-	var best: Dictionary = {}
-
-	for id in _tracked.keys():
-		var tracked_node: Variant = _tracked[id]
-		if not (tracked_node is Node3D) or not is_instance_valid(tracked_node):
-			continue
-
-		var result := _evaluate_candidate(tracked_node as Node3D, cam)
-		if result.is_empty():
-			continue
-		if best.is_empty() or float(result["score"]) < float(best["score"]):
-			best = result
-
-	return best
-
-
-func _evaluate_candidate(node: Node3D, cam: Camera3D) -> Dictionary:
-	var anchor := node.global_position + Vector3(0.0, LABEL_Y_OFFSET, 0.0)
-	if cam.is_position_behind(anchor):
-		return {}
-
-	var distance := cam.global_position.distance_to(anchor)
-	if distance > _candidate_range(node):
-		return {}
-
-	var cursor_distance := cam.unproject_position(anchor).distance_to(_cursor_screen_position())
-	if cursor_distance > AIM_RADIUS_PX:
-		return {}
-
-	if _los_blocked(cam, node, anchor):
-		return {}
-
-	var target := _build_target_data(node, distance)
-	target["score"] = cursor_distance + distance * 3.0
-	return target
 
 
 func _build_target_data(node: Node3D, distance: float) -> Dictionary:
@@ -801,41 +722,6 @@ func _candidate_range(node: Node) -> float:
 		if value is int:
 			return maxf(0.1, float(value))
 	return 2.5
-
-
-func _los_blocked(cam: Camera3D, node: Node3D, anchor: Vector3) -> bool:
-	var world := cam.get_world_3d()
-	if world == null:
-		return true
-
-	var query := PhysicsRayQueryParameters3D.create(cam.global_position, anchor)
-	query.collide_with_areas = true
-	query.collide_with_bodies = true
-	query.collision_mask = 0xFFFFFFFF
-	var exclude := _player_rids_for_camera(cam)
-	_gather_rids(node, exclude)
-	query.exclude = exclude
-	return not world.direct_space_state.intersect_ray(query).is_empty()
-
-
-func _player_rids_for_camera(cam: Camera3D) -> Array:
-	var out: Array = []
-	var parent := cam.get_parent()
-	var depth := 0
-	while parent != null and depth < 48:
-		if parent is CharacterBody3D:
-			_gather_rids(parent, out)
-			return out
-		parent = parent.get_parent()
-		depth += 1
-	return out
-
-
-func _gather_rids(node: Node, out: Array) -> void:
-	if node is CollisionObject3D:
-		out.append((node as CollisionObject3D).get_rid())
-	for child in node.get_children():
-		_gather_rids(child, out)
 
 
 func _cursor_screen_position() -> Vector2:
