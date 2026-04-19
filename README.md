@@ -7,7 +7,6 @@
 - Shows a small on-screen menu when the cursor or crosshair is on a valid container.
 - Uses direct cursor ray hits first, then falls back to an anchor-based check for containers with awkward colliders.
 - Limits activation range to `2.5m`.
-- Displays a real scrollable item list instead of `...` overflow markers.
 - Lets you move the highlighted item with `F`.
 - Lets you take everything from the current container with `R`.
 - Plays the same error beep the base game uses when transfer fails because there is no inventory space.
