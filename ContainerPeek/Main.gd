@@ -3,7 +3,6 @@ extends Node
 const GAME_DATA_RES := "res://Resources/GameData.tres"
 const UI_THEME_RES := "res://UI/Themes/Theme.tres"
 const UI_TILE_RES := "res://UI/Sprites/Tile.png"
-const SCAN_PERIOD := 1.0
 const PANEL_OFFSET := Vector2(18.0, 18.0)
 const SCREEN_PAD := 12.0
 const AIM_RADIUS_PX := 95.0
@@ -13,7 +12,6 @@ const LABEL_Y_OFFSET := 1.05
 const TRANSFER_ACTION := &"container_peek_transfer"
 const TAKE_ALL_ACTION := &"container_peek_take_all"
 
-var _scan_left := 0.0
 var _tracked: Dictionary = {}
 var _game_data: Resource
 var _selection_by_id: Dictionary = {}
@@ -32,6 +30,7 @@ var _hint_label: Label
 var _ui_host: Node
 var _ui_theme: Theme
 var _ui_tile: Texture2D
+var _interactor: RayCast3D
 
 
 func _process(delta: float) -> void:
@@ -42,11 +41,6 @@ func _process(delta: float) -> void:
 	if not _bootstrapped:
 		_try_bootstrap()
 		return
-
-	_scan_left -= delta
-	if _scan_left <= 0.0:
-		_rescan()
-		_scan_left = SCAN_PERIOD
 
 	if _should_hide():
 		_hide_panel()
@@ -281,7 +275,7 @@ func _try_bootstrap() -> bool:
 
 	# The overlay only matters once the world UI and camera both exist.
 	_build_ui(host)
-	_scan_left = 0.0
+	_interactor = _resolve_interactor()
 	_bootstrapped = true
 	return true
 
@@ -314,6 +308,9 @@ func _resolve_ui_host() -> Node:
 
 
 func _resolve_interactor() -> RayCast3D:
+	if _interactor != null and is_instance_valid(_interactor):
+		return _interactor
+
 	var tree := get_tree()
 	if tree == null:
 		return null
@@ -331,9 +328,11 @@ func _resolve_interactor() -> RayCast3D:
 	for path in candidates:
 		var node := scene.get_node_or_null(path)
 		if node is RayCast3D:
-			return node as RayCast3D
+			_interactor = node as RayCast3D
+			return _interactor
 
-	return _find_interactor(scene)
+	_interactor = _find_interactor(scene)
+	return _interactor
 
 
 func _find_interactor(node: Node) -> RayCast3D:
@@ -351,7 +350,6 @@ func _teardown_runtime() -> void:
 	_tracked.clear()
 	_last_focus_node = null
 	_bootstrapped = false
-	_scan_left = 0.0
 	if _canvas != null and is_instance_valid(_canvas):
 		_canvas.queue_free()
 	_canvas = null
@@ -361,6 +359,7 @@ func _teardown_runtime() -> void:
 	_items_box = null
 	_hint_label = null
 	_ui_host = null
+	_interactor = null
 
 
 func _hide_panel() -> void:
@@ -402,28 +401,6 @@ func _should_rerender_rows() -> bool:
 	if _current_target_id != _last_render_target_id:
 		return true
 	return int(_selection_by_id.get(_current_target_id, 0)) != _last_render_selection
-
-
-func _rescan() -> void:
-	_tracked.clear()
-	var root := _current_scan_root()
-	if root == null:
-		return
-	_scan_node(root)
-
-
-func _current_scan_root() -> Node:
-	var tree := get_tree()
-	if tree == null:
-		return null
-	return tree.current_scene
-
-
-func _scan_node(node: Node) -> void:
-	if node is Node3D and _looks_like_container(node):
-		_register_candidate(node as Node3D)
-	for child in node.get_children():
-		_scan_node(child)
 
 
 func _looks_like_container(node: Node) -> bool:
@@ -468,7 +445,7 @@ func _target_from_interactor(cam: Camera3D) -> Dictionary:
 	if not (collider is Node):
 		return {}
 
-	var container_node := _tracked_container_ancestor(collider as Node)
+	var container_node := _resolve_container_from_node(collider as Node)
 	if container_node == null:
 		return {}
 
@@ -502,7 +479,7 @@ func _target_from_cursor_raycast(cam: Camera3D) -> Dictionary:
 	if not (collider is Node):
 		return {}
 
-	var container_node := _tracked_container_ancestor(collider as Node)
+	var container_node := _resolve_container_from_node(collider as Node)
 	if container_node == null:
 		return {}
 
@@ -570,6 +547,23 @@ func _tracked_container_ancestor(node: Node) -> Node3D:
 		var tracked := _tracked.get(current.get_instance_id(), null)
 		if tracked is Node3D and is_instance_valid(tracked):
 			return tracked as Node3D
+		current = current.get_parent()
+		depth += 1
+	return null
+
+
+func _resolve_container_from_node(node: Node) -> Node3D:
+	var tracked := _tracked_container_ancestor(node)
+	if tracked != null:
+		return tracked
+
+	var current: Node = node
+	var depth := 0
+	while current != null and depth < 32:
+		if current is Node3D and _looks_like_container(current):
+			var container := current as Node3D
+			_register_candidate(container)
+			return container
 		current = current.get_parent()
 		depth += 1
 	return null
