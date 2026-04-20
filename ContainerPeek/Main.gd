@@ -38,6 +38,8 @@ var _rummage_progress_by_id: Dictionary = {}
 var _placeholder_blocks: Array = []
 var _current_target_id := -1
 var _visible_item_names: Array = []
+var _rendered_item_rows: Array = []
+var _rendered_placeholder_row: Control
 var _last_focus_node: Node3D
 var _last_render_target_id := -1
 var _last_render_selection := -1
@@ -71,6 +73,7 @@ var _item_text_width_cache: Dictionary = {}
 var _interactor: RayCast3D
 var _hud: Node
 var _rummage_audio: AudioStreamPlayer
+var _scroll_request_id := 0
 
 
 func _ready() -> void:
@@ -450,6 +453,8 @@ func _teardown_runtime() -> void:
 func _hide_panel() -> void:
 	_current_target_id = -1
 	_visible_item_names.clear()
+	_rendered_item_rows.clear()
+	_rendered_placeholder_row = null
 	_placeholder_blocks.clear()
 	_stop_rummage_sound()
 	_last_focus_node = null
@@ -479,20 +484,24 @@ func _show_panel(data: Dictionary, delta: float) -> void:
 	if _hint_label != null:
 		_hint_label.text = _hint_text()
 
+	var selection_changed := int(_selection_by_id.get(_current_target_id, 0)) != _last_render_selection
 	if _last_focus_node != null:
 		var summaries := ItemSupport.item_summaries(_last_focus_node)
 		var summary_signature := _summaries_signature(summaries)
 		_advance_rummage_progress(_current_target_id, summaries.size(), delta)
-		if _should_rerender_rows(summaries.size(), summary_signature):
+		var rerender_rows := _should_rerender_rows(summaries.size(), summary_signature)
+		if rerender_rows:
 			_render_item_rows(_last_focus_node, summaries)
 			_last_render_target_id = _current_target_id
-			_last_render_selection = int(_selection_by_id.get(_current_target_id, 0))
 			_last_render_visible_count = _visible_item_names.size()
 			_last_render_total_count = summaries.size()
 			_last_render_summary_signature = summary_signature
 			_last_render_loading = _is_rummage_loading(_current_target_id)
 			_last_render_rarity_colors = _rarity_colors_enabled()
 			_last_render_rarity_signature = _rarity_color_signature()
+		elif selection_changed:
+			_refresh_rendered_selection(_current_target_id)
+		_last_render_selection = int(_selection_by_id.get(_current_target_id, 0))
 		_update_loading_indicator(summaries.size())
 	else:
 		_update_loading_indicator(0)
@@ -512,8 +521,6 @@ func _should_rerender_rows(total_item_count: int, summary_signature: String) -> 
 	var visible_count := _revealed_item_count(_current_target_id, total_item_count)
 	var loading := _is_rummage_loading(_current_target_id)
 	if _current_target_id != _last_render_target_id:
-		return true
-	if int(_selection_by_id.get(_current_target_id, 0)) != _last_render_selection:
 		return true
 	if visible_count != _last_render_visible_count:
 		return true
@@ -853,6 +860,8 @@ func _resolve_container_from_node(node: Node) -> Node3D:
 func _render_item_rows(node: Node, summaries: Dictionary) -> void:
 	if _items_box == null:
 		return
+	_rendered_item_rows.clear()
+	_rendered_placeholder_row = null
 	_placeholder_blocks.clear()
 	for child in _items_box.get_children():
 		child.queue_free()
@@ -864,7 +873,8 @@ func _render_item_rows(node: Node, summaries: Dictionary) -> void:
 		_set_item_column_width(ITEM_COL_MIN_WIDTH)
 		_visible_item_names.clear()
 		if _is_rummage_loading(node.get_instance_id()):
-			_items_box.add_child(_make_placeholder_row(0, ITEM_COL_MIN_WIDTH))
+			_rendered_placeholder_row = _make_placeholder_row(0, ITEM_COL_MIN_WIDTH)
+			_items_box.add_child(_rendered_placeholder_row)
 			return
 		_items_box.add_child(_make_row("Empty", false, false))
 		return
@@ -901,20 +911,21 @@ func _render_item_rows(node: Node, summaries: Dictionary) -> void:
 				),
 				i == selected_index
 			)
+		_rendered_item_rows.append(row)
 		_items_box.add_child(row)
 		if i == selected_index:
 			selected_row = row
 
 	if visible_names.size() < names.size():
-		var placeholder_row := _make_placeholder_row(visible_names.size(), item_col_width)
-		_items_box.add_child(placeholder_row)
+		_rendered_placeholder_row = _make_placeholder_row(visible_names.size(), item_col_width)
+		_items_box.add_child(_rendered_placeholder_row)
 		var selection_at_bottom := selected_index == visible_names.size() - 1
 		if selection_at_bottom:
-			call_deferred("_ensure_row_visible", placeholder_row)
+			_request_row_visible(_rendered_placeholder_row)
 			return
 
 	if selected_row != null:
-		call_deferred("_ensure_row_visible", selected_row)
+		_request_row_visible(selected_row)
 
 
 func _make_row(text: String, selected: bool, status: bool) -> Control:
@@ -1194,6 +1205,12 @@ func _make_item_row(
 	)
 	box.add_child(condition_label)
 
+	row.set_meta(&"peek_prefix_label", prefix_label)
+	row.set_meta(&"peek_name_label", name_label)
+	row.set_meta(&"peek_weight_label", weight_label)
+	row.set_meta(&"peek_condition_label", condition_label)
+	row.set_meta(&"peek_rarity_color", rarity_color)
+
 	return row
 
 
@@ -1210,12 +1227,103 @@ func _sync_header_alignment() -> void:
 	_header_margin.add_theme_constant_override("margin_right", ROW_SIDE_PAD + gutter)
 
 
-func _ensure_row_visible(row: Control) -> void:
-	if row == null or not is_instance_valid(row) or _item_scroll == null:
+func _refresh_rendered_selection(container_id: int) -> void:
+	if _rendered_item_rows.is_empty():
 		return
 
-	await get_tree().process_frame
+	var selected_index := int(_selection_by_id.get(container_id, 0))
+	selected_index = clampi(selected_index, 0, maxi(_rendered_item_rows.size() - 1, 0))
+	_selection_by_id[container_id] = selected_index
+
+	var selected_row: Control = null
+	for i in range(_rendered_item_rows.size()):
+		var row_variant: Variant = _rendered_item_rows[i]
+		if not (row_variant is Control):
+			continue
+		var row := row_variant as Control
+		_apply_item_row_selection(row, i == selected_index)
+		if i == selected_index:
+			selected_row = row
+
+	if _rendered_placeholder_row != null and is_instance_valid(_rendered_placeholder_row):
+		var selection_at_bottom := selected_index == _rendered_item_rows.size() - 1
+		if selection_at_bottom:
+			_request_row_visible(_rendered_placeholder_row)
+			return
+
+	if selected_row != null:
+		_request_row_visible(selected_row)
+
+
+func _apply_item_row_selection(row: Control, selected: bool) -> void:
 	if row == null or not is_instance_valid(row):
+		return
+	if not (row is PanelContainer):
+		return
+
+	var panel_row := row as PanelContainer
+	var style: StyleBox
+	if selected:
+		if _ui_tile != null:
+			var textured := StyleBoxTexture.new()
+			textured.texture = _ui_tile
+			textured.texture_margin_left = 1.0
+			textured.texture_margin_top = 1.0
+			textured.texture_margin_right = 1.0
+			textured.texture_margin_bottom = 1.0
+			textured.content_margin_left = ROW_SIDE_PAD
+			textured.content_margin_right = ROW_SIDE_PAD
+			textured.modulate_color = Color(1.0, 1.0, 1.0, 0.32)
+			style = textured
+		else:
+			var selected_fallback := StyleBoxFlat.new()
+			selected_fallback.bg_color = Color(0.2, 0.2, 0.2, 0.9)
+			selected_fallback.content_margin_left = ROW_SIDE_PAD
+			selected_fallback.content_margin_right = ROW_SIDE_PAD
+			style = selected_fallback
+	else:
+		var empty_style := StyleBoxEmpty.new()
+		empty_style.content_margin_left = ROW_SIDE_PAD
+		empty_style.content_margin_right = ROW_SIDE_PAD
+		style = empty_style
+	panel_row.add_theme_stylebox_override("panel", style)
+
+	var prefix_label := row.get_meta(&"peek_prefix_label", null)
+	if prefix_label is Label:
+		(prefix_label as Label).text = ">" if selected else ""
+		(prefix_label as Label).add_theme_color_override(
+			"font_color", Color(1.0, 1.0, 1.0, 1.0) if selected else Color(1.0, 1.0, 1.0, 0.0)
+		)
+
+	var rarity_color := row.get_meta(&"peek_rarity_color", Color(1.0, 1.0, 1.0, 0.78))
+	var name_label := row.get_meta(&"peek_name_label", null)
+	if name_label is Label:
+		(name_label as Label).add_theme_color_override("font_color", rarity_color)
+
+	var weight_label := row.get_meta(&"peek_weight_label", null)
+	if weight_label is Label:
+		(weight_label as Label).add_theme_color_override(
+			"font_color", Color(1.0, 1.0, 1.0, 1.0) if selected else Color(1.0, 1.0, 1.0, 0.66)
+		)
+
+	var condition_label := row.get_meta(&"peek_condition_label", null)
+	if condition_label is Label:
+		(condition_label as Label).add_theme_color_override(
+			"font_color", Color(1.0, 1.0, 1.0, 1.0) if selected else Color(1.0, 1.0, 1.0, 0.66)
+		)
+
+
+func _request_row_visible(row: Control) -> void:
+	if row == null or not is_instance_valid(row):
+		return
+	_scroll_request_id += 1
+	call_deferred("_ensure_row_visible", row, _scroll_request_id)
+
+
+func _ensure_row_visible(row: Control, request_id: int) -> void:
+	if row == null or not is_instance_valid(row) or _item_scroll == null:
+		return
+	if request_id != _scroll_request_id:
 		return
 
 	var row_top := row.position.y
