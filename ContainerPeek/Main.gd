@@ -1047,7 +1047,7 @@ func _make_item_row(
 	name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	name_label.add_theme_font_size_override("font_size", 13)
 	name_label.add_theme_color_override(
-		"font_color", Color(1.0, 1.0, 1.0, 1.0) if selected else rarity_color
+		"font_color", rarity_color
 	)
 	box.add_child(name_label)
 
