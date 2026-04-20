@@ -522,7 +522,21 @@ func _rummage_progress_units(total_item_count: int) -> int:
 
 
 func _rummage_seconds_per_item() -> float:
+	if _shelter_bypasses_rummaging():
+		return 0.0
 	return maxf(0.0, ConfigSupport.float_setting(self, RUMMAGE_TIME_KEY, 0.0))
+
+
+func _shelter_bypasses_rummaging() -> bool:
+	if not ResourceLoader.exists(GAME_DATA_RES):
+		return false
+	if _game_data == null:
+		_game_data = load(GAME_DATA_RES) as Resource
+	if _game_data == null:
+		return false
+
+	var shelter: Variant = _game_data.get("shelter")
+	return shelter != null and bool(shelter)
 
 
 func _loading_animation_phase() -> int:
