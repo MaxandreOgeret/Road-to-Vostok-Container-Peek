@@ -125,7 +125,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 
 	var current := int(_selection_by_id.get(_current_target_id, 0))
-	_selection_by_id[_current_target_id] = posmod(current + direction, item_count)
+	_selection_by_id[_current_target_id] = clampi(current + direction, 0, item_count - 1)
 	get_viewport().set_input_as_handled()
 
 
@@ -721,7 +721,12 @@ func _render_item_rows(node: Node, summaries: Dictionary) -> void:
 			selected_row = row
 
 	if visible_names.size() < names.size():
-		_items_box.add_child(_make_placeholder_row(visible_names.size(), item_col_width))
+		var placeholder_row := _make_placeholder_row(visible_names.size(), item_col_width)
+		_items_box.add_child(placeholder_row)
+		var selection_at_bottom := selected_index == visible_names.size() - 1
+		if selection_at_bottom:
+			call_deferred("_ensure_row_visible", placeholder_row)
+			return
 
 	if selected_row != null:
 		call_deferred("_ensure_row_visible", selected_row)
