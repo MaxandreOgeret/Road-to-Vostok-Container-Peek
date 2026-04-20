@@ -11,6 +11,7 @@ const MAX_VISIBLE_ITEMS := 8
 const ITEM_ROW_HEIGHT := 20
 const ROW_SIDE_PAD := 2
 const ROW_PREFIX_WIDTH := 16.0
+const ITEM_COL_MIN_WIDTH := 120.0
 const COL_SEPARATION := 8
 const WEIGHT_COL_WIDTH := 56.0
 const CONDITION_COL_WIDTH := 62.0
@@ -19,11 +20,13 @@ const TAKE_ALL_ACTION := &"container_peek_take_all"
 const RUMMAGE_TIME_KEY := "rummage_seconds_per_item"
 const LOADING_FRAME_SECONDS := 0.2
 const LOADING_DOTS := ["", ".", "..", "..."]
+const PLACEHOLDER_BAR_HEIGHT := 8.0
 
 var _tracked: Dictionary = {}
 var _game_data: Resource
 var _selection_by_id: Dictionary = {}
 var _rummage_progress_by_id: Dictionary = {}
+var _placeholder_blocks: Array = []
 var _current_target_id := -1
 var _visible_item_names: Array = []
 var _last_focus_node: Node3D
@@ -369,6 +372,7 @@ func _teardown_runtime() -> void:
 	_hide_panel()
 	_tracked.clear()
 	_rummage_progress_by_id.clear()
+	_placeholder_blocks.clear()
 	_last_focus_node = null
 	_bootstrapped = false
 	if _canvas != null and is_instance_valid(_canvas):
@@ -389,6 +393,7 @@ func _teardown_runtime() -> void:
 func _hide_panel() -> void:
 	_current_target_id = -1
 	_visible_item_names.clear()
+	_placeholder_blocks.clear()
 	_last_focus_node = null
 	_last_render_target_id = -1
 	_last_render_selection = -1
@@ -524,6 +529,19 @@ func _update_loading_indicator(revealed_count: int, total_item_count: int) -> vo
 	_loading_label.visible = loading
 	if loading:
 		_loading_label.text = _loading_text(revealed_count, total_item_count)
+	_sync_placeholder_animation()
+
+
+func _sync_placeholder_animation() -> void:
+	var tint := _placeholder_tint()
+	for block in _placeholder_blocks:
+		if block is ColorRect and is_instance_valid(block):
+			(block as ColorRect).color = tint
+
+
+func _placeholder_tint() -> Color:
+	var pulse := 0.22 + 0.08 * (0.5 + 0.5 * sin(float(Time.get_ticks_msec()) * 0.008))
+	return Color(1.0, 1.0, 1.0, pulse)
 
 
 func _looks_like_container(node: Node) -> bool:
@@ -654,6 +672,7 @@ func _resolve_container_from_node(node: Node) -> Node3D:
 func _render_item_rows(node: Node, summaries: Dictionary) -> void:
 	if _items_box == null:
 		return
+	_placeholder_blocks.clear()
 	for child in _items_box.get_children():
 		child.queue_free()
 
@@ -663,12 +682,14 @@ func _render_item_rows(node: Node, summaries: Dictionary) -> void:
 	if summaries.is_empty():
 		_visible_item_names.clear()
 		if _is_rummage_loading(node.get_instance_id(), 0):
+			_items_box.add_child(_make_placeholder_row(0, ITEM_COL_MIN_WIDTH))
 			return
 		_items_box.add_child(_make_row("Empty", false, false))
 		return
 
 	var names: Array = summaries.keys()
 	names.sort()
+	var item_col_width := _item_name_column_width(summaries)
 	var revealed_count := _revealed_item_count(node.get_instance_id(), names.size())
 	var visible_names: Array = []
 	for i in range(revealed_count):
@@ -687,6 +708,7 @@ func _render_item_rows(node: Node, summaries: Dictionary) -> void:
 		var line_text := "%s x%d" % [item_name, amount] if amount > 1 else item_name
 		var row := _make_item_row(
 			line_text,
+			item_col_width,
 			ItemSupport.format_weight(float(summary.get("weight", 0.0))),
 			str(summary.get("condition", "--")),
 			ItemSupport.rarity_color(
@@ -697,6 +719,9 @@ func _render_item_rows(node: Node, summaries: Dictionary) -> void:
 		_items_box.add_child(row)
 		if i == selected_index:
 			selected_row = row
+
+	if visible_names.size() < names.size():
+		_items_box.add_child(_make_placeholder_row(visible_names.size(), item_col_width))
 
 	if selected_row != null:
 		call_deferred("_ensure_row_visible", selected_row)
@@ -748,6 +773,77 @@ func _make_row(text: String, selected: bool, status: bool) -> Control:
 	return row
 
 
+func _item_name_column_width(summaries: Dictionary) -> float:
+	var width := ITEM_COL_MIN_WIDTH
+	for item_name in summaries.keys():
+		var summary := summaries[item_name] as Dictionary
+		var amount := int(summary.get("amount", 1))
+		var line_text := "%s x%d" % [str(item_name), amount] if amount > 1 else str(item_name)
+		width = maxf(width, _measure_item_text_width(line_text))
+	return width
+
+
+func _measure_item_text_width(text: String) -> float:
+	var probe := Label.new()
+	probe.theme = _ui_theme
+	probe.add_theme_font_size_override("font_size", 13)
+	var font := probe.get_theme_font("font")
+	var font_size := probe.get_theme_font_size("font_size")
+	if font != null:
+		return ceil(font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1.0, font_size).x)
+	return maxf(ITEM_COL_MIN_WIDTH, float(text.length() * 7))
+
+
+func _make_placeholder_row(index: int, item_col_width: float) -> Control:
+	var row := PanelContainer.new()
+	row.theme = _ui_theme
+	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.custom_minimum_size = Vector2(0.0, float(ITEM_ROW_HEIGHT))
+	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+
+	var style := StyleBoxEmpty.new()
+	style.content_margin_left = ROW_SIDE_PAD
+	style.content_margin_right = ROW_SIDE_PAD
+	row.add_theme_stylebox_override("panel", style)
+
+	var margins := MarginContainer.new()
+	margins.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	margins.add_theme_constant_override("margin_top", 5)
+	margins.add_theme_constant_override("margin_bottom", 5)
+	row.add_child(margins)
+
+	var box := HBoxContainer.new()
+	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	box.add_theme_constant_override("separation", COL_SEPARATION)
+	margins.add_child(box)
+
+	var prefix_spacer := Control.new()
+	prefix_spacer.custom_minimum_size = Vector2(ROW_PREFIX_WIDTH, 0.0)
+	box.add_child(prefix_spacer)
+
+	var item_widths := [0.92, 0.76, 1.0, 0.84]
+	var item_bar := _make_placeholder_bar(item_col_width * float(item_widths[index % item_widths.size()]))
+	box.add_child(item_bar)
+
+	var item_filler := Control.new()
+	item_filler.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	box.add_child(item_filler)
+
+	box.add_child(_make_placeholder_bar(WEIGHT_COL_WIDTH - 12.0))
+	box.add_child(_make_placeholder_bar(CONDITION_COL_WIDTH - 14.0))
+
+	return row
+
+
+func _make_placeholder_bar(width: float) -> ColorRect:
+	var bar := ColorRect.new()
+	bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	bar.color = _placeholder_tint()
+	bar.custom_minimum_size = Vector2(maxf(12.0, width), PLACEHOLDER_BAR_HEIGHT)
+	_placeholder_blocks.append(bar)
+	return bar
+
+
 func _make_header_row() -> Control:
 	var row := HBoxContainer.new()
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -787,7 +883,12 @@ func _make_header_row() -> Control:
 
 
 func _make_item_row(
-	text: String, weight_text: String, condition_text: String, rarity_color: Color, selected: bool
+	text: String,
+	item_col_width: float,
+	weight_text: String,
+	condition_text: String,
+	rarity_color: Color,
+	selected: bool
 ) -> Control:
 	var row := PanelContainer.new()
 	row.theme = _ui_theme
@@ -844,6 +945,7 @@ func _make_item_row(
 	name_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	name_label.text = text
 	name_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	name_label.custom_minimum_size = Vector2(item_col_width, 0.0)
 	name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	name_label.add_theme_font_size_override("font_size", 13)
 	name_label.add_theme_color_override(
