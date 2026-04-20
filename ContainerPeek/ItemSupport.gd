@@ -209,8 +209,7 @@ static func slot_rarity(slot: Variant) -> String:
 
 
 static func slot_condition_percent(slot: Variant) -> int:
-	var item := slot_item(slot)
-	if not item_uses_condition(item):
+	if not slot_shows_condition(slot):
 		return -1
 
 	var raw: Variant = null
@@ -226,18 +225,33 @@ static func slot_condition_percent(slot: Variant) -> int:
 	return -1
 
 
-static func item_uses_condition(item: Variant) -> bool:
+static func slot_shows_condition(slot: Variant) -> bool:
+	var item := slot_item(slot)
 	if item == null or not (item is Object):
 		return false
 
 	var item_object := item as Object
 	var item_type := str(item_object.get("type")).strip_edges()
-	var item_subtype := str(item_object.get("subtype")).strip_edges()
+	if item_type == "Weapon":
+		return true
+	if item_type == "Armor" or item_type == "Helmet":
+		return true
+	if item_type == "Rig" and slot_has_nested_armor(slot):
+		return true
 
-	if item_subtype == "Magazine":
-		return false
+	var show_condition := item_object.get("showCondition")
+	if show_condition is bool and show_condition:
+		return true
 
-	return item_type in ["Weapon", "Armor", "Electronics"]
+	return false
+
+
+static func slot_has_nested_armor(slot: Variant) -> bool:
+	for nested in slot_nested(slot):
+		var nested_type := str(property_value(nested, &"type")).strip_edges()
+		if nested_type == "Armor":
+			return true
+	return false
 
 
 static func normalize_condition_percent(value: float) -> int:
