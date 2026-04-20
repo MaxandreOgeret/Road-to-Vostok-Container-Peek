@@ -1367,7 +1367,8 @@ func _try_direct_selected_transfer(container_node: Node) -> bool:
 	return _try_direct_slot_transfer(container_node, slot)
 
 
-# Reuse the game's Create path so item placement rules and failure feedback stay vanilla.
+# Mirrors res://Scripts/Interface.gd FastTransfer()/ContextTransfer(): try AutoStack()
+# into inventory first, then Create()/AutoPlace(), while preserving click/error feedback.
 func _try_direct_slot_transfer(container_node: Node, slot: Variant) -> bool:
 	var interface_node := _resolve_interface_node()
 	if interface_node == null or slot == null:
@@ -1379,8 +1380,14 @@ func _try_direct_slot_transfer(container_node: Node, slot: Variant) -> bool:
 	if inventory_grid == null:
 		return false
 
-	var created := bool(interface_node.call("Create", slot, inventory_grid, false))
-	if not created:
+	var moved := false
+	if interface_node.has_method("AutoStack"):
+		moved = bool(interface_node.call("AutoStack", slot, inventory_grid))
+
+	if not moved:
+		moved = bool(interface_node.call("Create", slot, inventory_grid, false))
+
+	if not moved:
 		_play_error_beep(interface_node)
 		return false
 
@@ -1388,6 +1395,8 @@ func _try_direct_slot_transfer(container_node: Node, slot: Variant) -> bool:
 	_last_render_target_id = -1
 	if interface_node.has_method("Reset"):
 		interface_node.call("Reset")
+	if interface_node.has_method("PlayClick"):
+		interface_node.call("PlayClick")
 	return true
 
 

@@ -71,6 +71,8 @@ static func slot_amount(slot: Variant) -> int:
 
 
 static func slot_summary_amount(slot: Variant) -> int:
+	# Mirrors res://Scripts/Item.gd amount semantics: ammo stacks expose item count,
+	# while magazine and weapon amounts are loaded-round state, not item multiplicity.
 	var item := slot_item(slot)
 	if item == null:
 		return 1
@@ -90,6 +92,8 @@ static func slot_summary_amount(slot: Variant) -> int:
 
 
 static func slot_total_weight(_container_node: Node, slot: Variant) -> float:
+	# Mirrors res://Scripts/Item.gd Weight() so peek weights track live ammo, chamber,
+	# magazine, and nested-item contributions the same way as the game tooltip/item UI.
 	var item := slot_item(slot)
 	if item == null:
 		return 0.0
@@ -226,6 +230,8 @@ static func slot_condition_percent(slot: Variant) -> int:
 
 
 static func slot_shows_condition(slot: Variant) -> bool:
+	# Mirrors the condition visibility rules used by res://Scripts/Item.gd and
+	# res://Scripts/Tooltip.gd for weapons, armor, helmets, armored rigs, and showCondition items.
 	var item := slot_item(slot)
 	if item == null or not (item is Object):
 		return false
@@ -285,6 +291,8 @@ static func rarity_color(rarity: String, enabled: bool, custom_colors: Dictionar
 	if not enabled:
 		return Color(1.0, 1.0, 1.0, 0.78)
 
+	# Mirrors the game's real rarity tiers from res://Scripts/ItemData.gd and the
+	# base tooltip rarity colors from res://Scripts/Tooltip.gd.
 	match normalize_rarity_value(rarity).to_lower():
 		"legendary":
 			return rarity_color_override(custom_colors, "legendary", Color(1.0, 0.75, 0.28, 0.95))
@@ -302,6 +310,7 @@ static func rarity_color_override(custom_colors: Dictionary, key: String, fallba
 
 
 static func normalize_rarity_value(rarity: Variant) -> String:
+	# Mirrors ItemData.Rarity: Common, Rare, Legendary, Null.
 	var rarity_text := str(rarity).strip_edges()
 	match rarity_text.to_lower():
 		"0":

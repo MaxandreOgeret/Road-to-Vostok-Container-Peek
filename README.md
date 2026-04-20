@@ -67,6 +67,7 @@ Main runtime split:
 - `Config.gd`: MCM registration and input action setup
 - `ConfigSupport.gd`: runtime config fallback reads and binding label helpers
 - `ItemSupport.gd`: container item summaries, rarity, weight, condition, and selection helpers
+- `doc/game-sync.md`: upstream game-code behaviors intentionally mirrored by the mod and worth re-checking after game updates
 
 ## Build
 
