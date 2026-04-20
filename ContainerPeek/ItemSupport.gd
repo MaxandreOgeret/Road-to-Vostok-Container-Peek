@@ -16,9 +16,9 @@ static func item_summaries(node: Node) -> Dictionary:
 			}
 
 		var summary := result[item_name] as Dictionary
-		var amount := slot_amount(slot)
+		var amount := slot_summary_amount(slot)
 		summary["amount"] = int(summary.get("amount", 0)) + amount
-		summary["weight"] = float(summary.get("weight", 0.0)) + slot_total_weight(slot)
+		summary["weight"] = float(summary.get("weight", 0.0)) + slot_total_weight(node, slot)
 		summary["rarity"] = slot_rarity(slot)
 
 		var condition := slot_condition_percent(slot)
@@ -70,20 +70,127 @@ static func slot_amount(slot: Variant) -> int:
 	return 1
 
 
-static func slot_total_weight(slot: Variant) -> float:
+static func slot_summary_amount(slot: Variant) -> int:
 	var item := slot_item(slot)
-	if item == null or not (item is Object):
+	if item == null:
+		return 1
+
+	var item_type := str(property_value(item, &"type")).strip_edges()
+	var item_subtype := str(property_value(item, &"subtype")).strip_edges()
+	if item_type == "Ammo" or item_subtype == "Magazine":
+		if item_type == "Ammo":
+			return slot_amount(slot)
+		return 1
+
+	var stackable := property_value(item, &"stackable")
+	if stackable is bool and stackable:
+		return slot_amount(slot)
+
+	return 1
+
+
+static func slot_total_weight(_container_node: Node, slot: Variant) -> float:
+	var item := slot_item(slot)
+	if item == null:
 		return 0.0
 
-	var raw_weight: Variant = (item as Object).get("weight")
-	var slot_weight := 0.0
-	if raw_weight is float:
-		slot_weight = float(raw_weight)
-	elif raw_weight is int:
-		slot_weight = float(raw_weight)
+	var weight := numeric_property(item, [
+		&"weight",
+	])
+	var item_type := str(property_value(item, &"type")).strip_edges()
+	var item_subtype := str(property_value(item, &"subtype")).strip_edges()
+	var loaded_amount := slot_raw_amount(slot)
 
-	# RTV already reports effective slot weight here, including stack size and loaded contents.
-	return maxf(0.0, slot_weight)
+	if item_type == "Ammo":
+		var default_amount := numeric_property(item, [
+			&"defaultAmount",
+		])
+		if default_amount > 0.0:
+			weight *= loaded_amount / default_amount
+
+	if item_subtype == "Magazine" and loaded_amount != 0.0:
+		var compatible := property_value(item, &"compatible")
+		if compatible is Array and not (compatible as Array).is_empty():
+			var ammo_data: Variant = (compatible as Array)[0]
+			var ammo_default_amount := numeric_property(ammo_data, [
+				&"defaultAmount",
+			])
+			if ammo_default_amount > 0.0:
+				var weight_per_round := numeric_property(ammo_data, [
+					&"weight",
+				]) / ammo_default_amount
+				weight += weight_per_round * loaded_amount
+
+	if item_type == "Weapon" and (loaded_amount != 0.0 or slot_chambered(slot)):
+		var ammo_data := property_value(item, &"ammo")
+		var ammo_default_amount := numeric_property(ammo_data, [
+			&"defaultAmount",
+		])
+		if ammo_default_amount > 0.0:
+			var weight_per_round := numeric_property(ammo_data, [
+				&"weight",
+			]) / ammo_default_amount
+			var total_ammo_weight := weight_per_round * loaded_amount
+			if slot_chambered(slot):
+				total_ammo_weight += weight_per_round
+			weight += total_ammo_weight
+
+	for nested in slot_nested(slot):
+		weight += numeric_property(nested, [
+			&"weight",
+		])
+
+	return maxf(0.0, snappedf(weight, 0.01))
+
+
+static func property_value(target: Variant, key: StringName) -> Variant:
+	if target == null:
+		return null
+	if target is Object:
+		return (target as Object).get(key)
+	if target is Dictionary:
+		return (target as Dictionary).get(key, null)
+	return null
+
+
+static func numeric_property(target: Variant, keys: Array[StringName]) -> float:
+	for key in keys:
+		var raw_value := property_value(target, key)
+		if raw_value is float:
+			return float(raw_value)
+		if raw_value is int:
+			return float(raw_value)
+	return 0.0
+
+
+static func slot_raw_amount(slot: Variant) -> float:
+	if slot is Object:
+		var raw: Variant = (slot as Object).get("amount")
+		if raw is float:
+			return float(raw)
+		if raw is int:
+			return float(raw)
+	elif slot is Dictionary:
+		var raw_dict: Variant = (slot as Dictionary).get("amount", 0)
+		if raw_dict is float:
+			return float(raw_dict)
+		if raw_dict is int:
+			return float(raw_dict)
+	return 0.0
+
+
+static func slot_chambered(slot: Variant) -> bool:
+	var chambered := property_value(slot, &"chamber")
+	if chambered is bool:
+		return chambered
+	return false
+
+
+static func slot_nested(slot: Variant) -> Array:
+	var nested := property_value(slot, &"nested")
+	if nested is Array:
+		return nested
+	return []
 
 
 static func slot_rarity(slot: Variant) -> String:
