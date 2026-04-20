@@ -4,101 +4,62 @@
   <img src="doc/screenshot.png" alt="Container Peek screenshot" />
 </p>
 
-`Container Peek` is a `Road to Vostok` mod that shows a compact loot window when you aim at a container inside interaction range.
+`Container Peek` is a `Road to Vostok` mod that opens a compact loot window when you look at a container that the game considers interactable.
 
-## Features
+## Overview
 
-- Shows a compact loot menu when the game itself considers a container interactable.
-- Uses the game's `Interactor` ray and HUD prompt instead of a separate scene scan.
-- Uses the container's own interaction range when available, with a `2.5m` fallback.
-- Hides cleanly when the game is paused so the peek menu does not sit on top of pause UI.
-- Shows item, total stack weight, and condition columns with a sticky table header.
-- Uses a real scrollbar for longer containers.
-- Supports optional rarity-colored item names.
-- Keeps rarity coloring visible even on the currently selected row.
-- Supports optional first-look rummaging with a configurable per-item reveal delay, single-row skeleton placeholder, spinner, and loading indicator.
-- Can play the base game's `Craft_Generic` rummage sound while revealing rows, with randomized start offsets into the clip.
-- Skips rummaging entirely in the shelter and shows full contents immediately there.
-- Supports configurable menu background opacity.
-- Lets you transfer the selected entry or take everything from the current container.
-- Plays the same error beep the base game uses when transfer fails because there is no inventory space.
-- Supports rebinding and UI color/audio settings through Mod Configuration Menu when MCM is installed.
+The mod follows the game's own interaction logic instead of running a separate container scan. It uses the live interactor target, respects the container's interaction range when that information is available, and falls back to `2.5m` when it is not. The peek window hides when the game is paused so it does not overlap the pause menu.
+
+The loot window shows item names, total displayed weight, and condition in a compact table with a fixed header and a real scrollbar. Rarity colors can be enabled for item names, and the selected row keeps its rarity color instead of switching to a neutral highlight color.
+
+The mod also supports an optional rummaging system for first-time inspection. When rummaging is enabled, grouped item rows are revealed over time with a spinner, a single skeleton placeholder row, and optional audio based on the game's `Craft_Generic` sound. In shelters, rummaging is skipped entirely and the full contents are shown immediately.
+
+Transfer behavior is designed to stay close to the base game. You can transfer the selected entry or take all visible contents, and failed transfers use the same error feedback the game already uses when inventory space runs out.
 
 ## Controls
 
-- `Mouse Wheel`: Move the selection in the loot list
-- `F`: Transfer the selected entry to inventory
-- `R`: Take all items from the current container
+By default, the mouse wheel moves the selection in the loot list, `F` transfers the selected entry to your inventory, and `R` transfers everything from the current container. These bindings can be changed in Mod Configuration Menu when MCM is installed.
 
-These defaults can be rebound in MCM.
+## Behavior Notes
 
-## Known Behavior
+The preview groups identical item names into a single row. Because of that grouping, transferring a selected row moves the first matching stack for that name rather than a specific stack instance.
 
-- The preview groups identical item names into a single row.
-- When rummage delay is above `0`, new containers reveal grouped rows over time; setting it to `0` keeps the current instant list behavior.
-- Empty containers still spend one rummage interval showing the loading state before `Empty`, unless rummaging is disabled.
-- Because of that grouping, `F` transfers the first matching stack for the selected name, not a specific stack instance.
-- `R` is unavailable while rummaging is still in progress.
-- `R` stops on the first failed insert so partial take-all stays predictable when inventory space runs out.
-- The condition column is shown only for item types the game itself treats as condition-bearing: weapons, armor, helmets, rigs with armor inserts, and items with `showCondition`.
-- Rarity color settings only use the game's actual rarity tiers: `Common`, `Rare`, and `Legendary`.
+When `Rummage Time / Item` is greater than `0`, newly inspected containers reveal grouped rows over time. Setting that value to `0` restores the immediate display behavior. Empty containers still spend one rummage interval in the loading state before showing `Empty`, unless rummaging has been disabled.
 
-## MCM Settings
+`Take All` is unavailable while rummaging is still in progress. When `Take All` fails because the inventory is full, it stops at the first failed insert so the result stays predictable.
 
-- `Transfer Selected`: keybind for moving the selected row to inventory.
-- `Take All`: keybind for moving all visible contents to inventory.
-- `Rarity Colors`: toggles rarity-colored item names.
-- `Rummage Time / Item`: per-row reveal delay for first-time container inspection. `0` disables rummaging.
-- `Rummage Audio`: toggles the rummaging sound effect during reveal.
-- `Menu Opacity`: controls panel background opacity without affecting text opacity.
-- `Common Color`, `Rare Color`, `Legendary Color`: override preview colors for the game's supported rarity tiers.
+The condition column is only shown for item types that the game itself treats as condition-bearing, such as weapons, armor, helmets, rigs with armor inserts, and items that explicitly enable `showCondition`. Rarity color settings only apply to the game's real rarity tiers: `Common`, `Rare`, and `Legendary`.
+
+## Configuration
+
+When Mod Configuration Menu is installed, the mod exposes settings for the transfer keybind, the take-all keybind, rarity colors, rummage timing, rummage audio, menu opacity, and the three supported rarity color overrides.
+
+`Rummage Time / Item` controls how long each grouped item row takes to appear during first inspection, and a value of `0` disables rummaging completely. `Rummage Audio` enables or disables the rummaging sound effect during reveal. `Menu Opacity` changes the background opacity of the panel without affecting text readability.
 
 ## Repository Layout
 
-- `mod.txt`
-- `ContainerPeek/Main.gd`
-- `ContainerPeek/Config.gd`
-- `ContainerPeek/ConfigSupport.gd`
-- `ContainerPeek/ItemSupport.gd`
+The packaged mod consists of `mod.txt` and the `ContainerPeek/` directory. The runtime logic is split across `ContainerPeek/Main.gd`, which handles scene lifecycle, UI, targeting, and transfer flow; `ContainerPeek/Config.gd`, which registers the MCM settings and input actions; `ContainerPeek/ConfigSupport.gd`, which provides runtime configuration helpers; and `ContainerPeek/ItemSupport.gd`, which handles item summaries, rarity, weight, condition, and selection helpers.
 
-Main runtime split:
-
-- `Main.gd`: scene lifecycle, target resolution, menu UI, and transfer flow
-- `Config.gd`: MCM registration and input action setup
-- `ConfigSupport.gd`: runtime config fallback reads and binding label helpers
-- `ItemSupport.gd`: container item summaries, rarity, weight, condition, and selection helpers
-- `doc/game-sync.md`: upstream game-code behaviors intentionally mirrored by the mod and worth re-checking after game updates
+The repository also includes [doc/game-sync.md](/home/mackou/project/vostok_lootmenu/doc/game-sync.md:1), which documents the parts of the mod that intentionally mirror decompiled game logic and should be reviewed after a game update.
 
 ## Build
 
-Create the mod archive from the repository root:
+Create the mod archive from the repository root with the following command:
 
 ```bash
 zip -r ContainerPeek.zip mod.txt ContainerPeek
 ```
 
-The archive root must contain:
+The root of the archive must contain `mod.txt` and the `ContainerPeek/` directory.
 
-- `mod.txt`
-- `ContainerPeek/`
+## Installation
 
-## Install
-
-Copy `ContainerPeek.zip` into the game mods folder:
-
-```text
-~/.steam/debian-installation/steamapps/common/Road to Vostok/mods/
-```
-
-Then restart the game fully.
+Copy `ContainerPeek.zip` into the game's mod folder at `~/.steam/debian-installation/steamapps/common/Road to Vostok/mods/`, then restart the game completely.
 
 ## Requirements
 
-- `Road to Vostok`
-- The community mod loader format used by the game
-- `Mod Configuration Menu` is optional, but needed for the in-game keybind, rummage, opacity, audio, and rarity-color settings UI
+The mod requires `Road to Vostok` and the community mod loader format used by the game. `Mod Configuration Menu` is optional, but it is required if you want to change bindings or adjust the rummage, audio, opacity, and rarity color settings in game.
 
 ## References
 
-- Community loader install and mod format: <https://github.com/ametrocavich/vostok-mod-loader>
-- Current container script reference and live fields from a working community mod: <https://modworkshop.net/mod/55135>
+The loader format and installation details are documented at <https://github.com/ametrocavich/vostok-mod-loader>. The container script reference that helped shape the live-field handling is available at <https://modworkshop.net/mod/55135>.
