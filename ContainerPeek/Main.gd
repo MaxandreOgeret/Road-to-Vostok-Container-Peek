@@ -3,6 +3,8 @@ extends Node
 const ConfigSupport = preload("res://ContainerPeek/ConfigSupport.gd")
 const ItemSupport = preload("res://ContainerPeek/ItemSupport.gd")
 const GAME_DATA_RES := "res://Resources/GameData.tres"
+const AUDIO_INSTANCE_2D_SCENE := preload("res://Resources/AudioInstance2D.tscn")
+const RUMMAGE_AUDIO_EVENT := preload("res://Audio/Crafting/Craft_Generic.tres")
 const UI_THEME_RES := "res://UI/Themes/Theme.tres"
 const UI_TILE_RES := "res://UI/Sprites/Tile.png"
 const PANEL_OFFSET := Vector2(18.0, 18.0)
@@ -18,6 +20,7 @@ const CONDITION_COL_WIDTH := 62.0
 const TRANSFER_ACTION := &"container_peek_transfer"
 const TAKE_ALL_ACTION := &"container_peek_take_all"
 const RUMMAGE_TIME_KEY := "rummage_seconds_per_item"
+const RUMMAGE_AUDIO_KEY := "rummage_audio"
 const PANEL_OPACITY_KEY := "panel_opacity"
 const RARITY_COMMON_COLOR_KEY := "rarity_common_color"
 const RARITY_RARE_COLOR_KEY := "rarity_rare_color"
@@ -25,6 +28,8 @@ const RARITY_LEGENDARY_COLOR_KEY := "rarity_legendary_color"
 const LOADING_FRAME_SECONDS := 0.2
 const LOADING_SPINNER_FRAMES := ["|", "/", "-", "\\"]
 const PLACEHOLDER_BAR_HEIGHT := 8.0
+const RUMMAGE_AUDIO_MIN_OFFSET := 1.0
+const RUMMAGE_AUDIO_END_PAD := 0.05
 
 var _tracked: Dictionary = {}
 var _game_data: Resource
@@ -65,6 +70,7 @@ var _item_font_size := 13
 var _item_text_width_cache: Dictionary = {}
 var _interactor: RayCast3D
 var _hud: Node
+var _rummage_audio: AudioStreamPlayer
 
 
 func _ready() -> void:
@@ -436,6 +442,7 @@ func _teardown_runtime() -> void:
 	_ui_host = null
 	_interactor = null
 	_hud = null
+	_rummage_audio = null
 	_item_font = null
 	_item_text_width_cache.clear()
 
@@ -444,6 +451,7 @@ func _hide_panel() -> void:
 	_current_target_id = -1
 	_visible_item_names.clear()
 	_placeholder_blocks.clear()
+	_stop_rummage_sound()
 	_last_focus_node = null
 	_last_render_target_id = -1
 	_last_render_selection = -1
@@ -522,24 +530,32 @@ func _should_rerender_rows(total_item_count: int, summary_signature: String) -> 
 
 func _advance_rummage_progress(container_id: int, total_item_count: int, delta: float) -> void:
 	if container_id == -1:
+		_stop_rummage_sound()
 		return
 
 	var delay := _rummage_seconds_per_item()
 	var state := _rummage_progress_by_id.get(container_id, {})
 	var progress_units := _rummage_progress_units(total_item_count)
 	if delay <= 0.0:
+		_stop_rummage_sound()
 		state["elapsed"] = 0.0 if total_item_count <= 0 else delay * float(progress_units)
 		state["completed"] = true
 		_rummage_progress_by_id[container_id] = state
 		return
 
 	if bool(state.get("completed", false)):
+		_stop_rummage_sound()
 		return
+
+	_maybe_play_rummage_sound(state, progress_units)
 
 	var full_duration := delay * float(progress_units)
 	var elapsed := minf(full_duration, float(state.get("elapsed", 0.0)) + maxf(0.0, delta))
 	state["elapsed"] = elapsed
+	_maybe_play_rummage_sound(state, progress_units)
 	state["completed"] = elapsed >= full_duration
+	if bool(state.get("completed", false)):
+		_stop_rummage_sound()
 	_rummage_progress_by_id[container_id] = state
 
 
@@ -588,6 +604,76 @@ func _shelter_bypasses_rummaging() -> bool:
 	return shelter != null and bool(shelter)
 
 
+func _maybe_play_rummage_sound(state: Dictionary, progress_units: int) -> void:
+	if progress_units <= 0:
+		return
+	var delay := _rummage_seconds_per_item()
+	if delay <= 0.0:
+		return
+
+	var elapsed := float(state.get("elapsed", 0.0))
+	var current_step := mini(progress_units - 1, int(floor(elapsed / delay)))
+	var last_sound_step := int(state.get("last_sound_step", -1))
+	if current_step <= last_sound_step:
+		return
+
+	state["last_sound_step"] = current_step
+	_play_rummage_sound()
+
+
+func _play_rummage_sound() -> void:
+	if not ConfigSupport.bool_setting(self, RUMMAGE_AUDIO_KEY, true):
+		_stop_rummage_sound()
+		return
+	if AUDIO_INSTANCE_2D_SCENE == null or RUMMAGE_AUDIO_EVENT == null:
+		_stop_rummage_sound()
+		return
+
+	if _rummage_audio != null and is_instance_valid(_rummage_audio):
+		if _rummage_audio.is_playing():
+			return
+		_rummage_audio.queue_free()
+		_rummage_audio = null
+
+	var tree := get_tree()
+	if tree == null:
+		return
+
+	var audio := AUDIO_INSTANCE_2D_SCENE.instantiate()
+	if audio == null:
+		return
+
+	tree.get_root().add_child(audio)
+	_rummage_audio = audio as AudioStreamPlayer
+	if audio.has_method("PlayInstance"):
+		audio.call("PlayInstance", RUMMAGE_AUDIO_EVENT)
+		_seek_rummage_sound_random_offset()
+
+
+func _stop_rummage_sound() -> void:
+	if _rummage_audio == null or not is_instance_valid(_rummage_audio):
+		_rummage_audio = null
+		return
+
+	_rummage_audio.stop()
+	_rummage_audio.queue_free()
+	_rummage_audio = null
+
+
+func _seek_rummage_sound_random_offset() -> void:
+	if _rummage_audio == null or not is_instance_valid(_rummage_audio):
+		return
+	if _rummage_audio.stream == null:
+		return
+
+	var clip_length := _rummage_audio.stream.get_length()
+	var max_offset := clip_length - RUMMAGE_AUDIO_END_PAD
+	if max_offset <= RUMMAGE_AUDIO_MIN_OFFSET:
+		return
+
+	_rummage_audio.seek(randf_range(RUMMAGE_AUDIO_MIN_OFFSET, max_offset))
+
+
 func _loading_animation_phase() -> int:
 	return int(floor(float(Time.get_ticks_msec()) / (LOADING_FRAME_SECONDS * 1000.0))) % LOADING_SPINNER_FRAMES.size()
 
@@ -600,10 +686,12 @@ func _update_loading_indicator(total_item_count: int) -> void:
 	if _loading_row == null or _loading_label == null or _loading_spinner_label == null:
 		return
 	var loading := _is_rummage_loading(_current_target_id)
+	if not loading:
+		_stop_rummage_sound()
 	_loading_row.modulate = Color(1.0, 1.0, 1.0, 1.0 if loading else 0.0)
 	if loading:
 		_loading_spinner_label.text = _loading_spinner_text()
-	_sync_placeholder_animation()
+		_sync_placeholder_animation()
 
 
 func _summaries_signature(summaries: Dictionary) -> String:

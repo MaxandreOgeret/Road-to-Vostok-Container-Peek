@@ -12,6 +12,7 @@ const TRANSFER_ACTION := &"container_peek_transfer"
 const TAKE_ALL_ACTION := &"container_peek_take_all"
 const RARITY_COLORS_KEY := "rarity_colors"
 const RUMMAGE_TIME_KEY := "rummage_seconds_per_item"
+const RUMMAGE_AUDIO_KEY := "rummage_audio"
 const PANEL_OPACITY_KEY := "panel_opacity"
 const RARITY_COMMON_COLOR_KEY := "rarity_common_color"
 const RARITY_RARE_COLOR_KEY := "rarity_rare_color"
@@ -156,6 +157,20 @@ func _build_default_config() -> ConfigFile:
 				"maxRange": 2.0,
 				"step": 0.05,
 				"menu_pos": 40,
+			}
+		)
+	)
+	(
+		config
+		. set_value(
+			"Bool",
+			RUMMAGE_AUDIO_KEY,
+			{
+				"name": "Rummage Audio",
+				"tooltip": "Play the rummaging sound effect while items are being revealed.",
+				"default": true,
+				"value": true,
+				"menu_pos": 42,
 			}
 		)
 	)
