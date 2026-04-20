@@ -18,6 +18,11 @@ const CONDITION_COL_WIDTH := 62.0
 const TRANSFER_ACTION := &"container_peek_transfer"
 const TAKE_ALL_ACTION := &"container_peek_take_all"
 const RUMMAGE_TIME_KEY := "rummage_seconds_per_item"
+const RARITY_COMMON_COLOR_KEY := "rarity_common_color"
+const RARITY_UNCOMMON_COLOR_KEY := "rarity_uncommon_color"
+const RARITY_RARE_COLOR_KEY := "rarity_rare_color"
+const RARITY_EPIC_COLOR_KEY := "rarity_epic_color"
+const RARITY_LEGENDARY_COLOR_KEY := "rarity_legendary_color"
 const LOADING_FRAME_SECONDS := 0.2
 const LOADING_SPINNER_FRAMES := ["|", "/", "-", "\\"]
 const PLACEHOLDER_BAR_HEIGHT := 8.0
@@ -37,6 +42,7 @@ var _last_render_total_count := -1
 var _last_render_summary_signature := ""
 var _last_render_loading := false
 var _last_render_rarity_colors := true
+var _last_render_rarity_signature := ""
 var _bootstrapped := false
 
 var _canvas: CanvasLayer
@@ -430,6 +436,7 @@ func _hide_panel() -> void:
 	_last_render_summary_signature = ""
 	_last_render_loading = false
 	_last_render_rarity_colors = true
+	_last_render_rarity_signature = ""
 	if _panel == null:
 		return
 	_panel.visible = false
@@ -460,6 +467,7 @@ func _show_panel(data: Dictionary, delta: float) -> void:
 			_last_render_summary_signature = summary_signature
 			_last_render_loading = _is_rummage_loading(_current_target_id)
 			_last_render_rarity_colors = _rarity_colors_enabled()
+			_last_render_rarity_signature = _rarity_color_signature()
 		_update_loading_indicator(summaries.size())
 	else:
 		_update_loading_indicator(0)
@@ -490,7 +498,9 @@ func _should_rerender_rows(total_item_count: int, summary_signature: String) -> 
 		return true
 	if loading != _last_render_loading:
 		return true
-	return _rarity_colors_enabled() != _last_render_rarity_colors
+	if _rarity_colors_enabled() != _last_render_rarity_colors:
+		return true
+	return _rarity_color_signature() != _last_render_rarity_signature
 
 
 func _advance_rummage_progress(container_id: int, total_item_count: int, delta: float) -> void:
@@ -775,15 +785,17 @@ func _render_item_rows(node: Node, summaries: Dictionary) -> void:
 		var amount := int(summary.get("amount", 1))
 		var line_text := "%s x%d" % [item_name, amount] if amount > 1 else item_name
 		var row := _make_item_row(
-			line_text,
-			item_col_width,
-			ItemSupport.format_weight(float(summary.get("weight", 0.0))),
-			str(summary.get("condition", "--")),
-			ItemSupport.rarity_color(
-				str(summary.get("rarity", ItemSupport.RARITY_COMMON)), _rarity_colors_enabled()
-			),
-			i == selected_index
-		)
+				line_text,
+				item_col_width,
+				ItemSupport.format_weight(float(summary.get("weight", 0.0))),
+				str(summary.get("condition", "--")),
+				ItemSupport.rarity_color(
+					str(summary.get("rarity", ItemSupport.RARITY_COMMON)),
+					_rarity_colors_enabled(),
+					_rarity_color_map()
+				),
+				i == selected_index
+			)
 		_items_box.add_child(row)
 		if i == selected_index:
 			selected_row = row
@@ -1117,6 +1129,40 @@ func _ensure_row_visible(row: Control) -> void:
 
 func _rarity_colors_enabled() -> bool:
 	return ConfigSupport.bool_setting(self, "rarity_colors", true)
+
+
+func _rarity_color_map() -> Dictionary:
+	return {
+		"common": ConfigSupport.color_setting(
+			self, RARITY_COMMON_COLOR_KEY, Color(1.0, 1.0, 1.0, 0.78)
+		),
+		"uncommon": ConfigSupport.color_setting(
+			self, RARITY_UNCOMMON_COLOR_KEY, Color(0.56, 0.9, 0.56, 0.92)
+		),
+		"rare": ConfigSupport.color_setting(
+			self, RARITY_RARE_COLOR_KEY, Color(0.45, 0.78, 1.0, 0.95)
+		),
+		"epic": ConfigSupport.color_setting(
+			self, RARITY_EPIC_COLOR_KEY, Color(0.88, 0.52, 1.0, 0.95)
+		),
+		"legendary": ConfigSupport.color_setting(
+			self, RARITY_LEGENDARY_COLOR_KEY, Color(1.0, 0.75, 0.28, 0.95)
+		),
+	}
+
+
+func _rarity_color_signature() -> String:
+	var colors := _rarity_color_map()
+	var parts := PackedStringArray()
+	for rarity in ["common", "uncommon", "rare", "epic", "legendary"]:
+		var color := colors.get(rarity, Color.WHITE)
+		if color is Color:
+			var rarity_color := color as Color
+			parts.append(
+				"%s=%.3f,%.3f,%.3f,%.3f"
+				% [rarity, rarity_color.r, rarity_color.g, rarity_color.b, rarity_color.a]
+			)
+	return "|".join(parts)
 
 
 func _cursor_screen_position() -> Vector2:

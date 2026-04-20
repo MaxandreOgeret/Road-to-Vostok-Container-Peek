@@ -12,6 +12,11 @@ const TRANSFER_ACTION := &"container_peek_transfer"
 const TAKE_ALL_ACTION := &"container_peek_take_all"
 const RARITY_COLORS_KEY := "rarity_colors"
 const RUMMAGE_TIME_KEY := "rummage_seconds_per_item"
+const RARITY_COMMON_COLOR_KEY := "rarity_common_color"
+const RARITY_UNCOMMON_COLOR_KEY := "rarity_uncommon_color"
+const RARITY_RARE_COLOR_KEY := "rarity_rare_color"
+const RARITY_EPIC_COLOR_KEY := "rarity_epic_color"
+const RARITY_LEGENDARY_COLOR_KEY := "rarity_legendary_color"
 
 var _config := ConfigFile.new()
 var _mcm_helpers: Resource
@@ -67,6 +72,15 @@ func get_float(setting_key: String, default_value: float = 0.0) -> float:
 		return float(value)
 	if value is int:
 		return float(value)
+	return default_value
+
+
+func get_color(setting_key: String, default_value: Color = Color(1.0, 1.0, 1.0, 1.0)) -> Color:
+	var value: Variant = _config.get_value("Color", setting_key, default_value)
+	if value is Dictionary:
+		value = (value as Dictionary).get("value", default_value)
+	if value is Color:
+		return value
 	return default_value
 
 
@@ -143,6 +157,81 @@ func _build_default_config() -> ConfigFile:
 				"maxRange": 2.0,
 				"step": 0.05,
 				"menu_pos": 40,
+			}
+		)
+	)
+	(
+		config
+		. set_value(
+			"Color",
+			RARITY_COMMON_COLOR_KEY,
+			{
+				"name": "Common Color",
+				"tooltip": "Preview list color for common items.",
+				"default": Color(1.0, 1.0, 1.0, 0.78),
+				"value": Color(1.0, 1.0, 1.0, 0.78),
+				"allowAlpha": true,
+				"menu_pos": 50,
+			}
+		)
+	)
+	(
+		config
+		. set_value(
+			"Color",
+			RARITY_UNCOMMON_COLOR_KEY,
+			{
+				"name": "Uncommon Color",
+				"tooltip": "Preview list color for uncommon items.",
+				"default": Color(0.56, 0.9, 0.56, 0.92),
+				"value": Color(0.56, 0.9, 0.56, 0.92),
+				"allowAlpha": true,
+				"menu_pos": 60,
+			}
+		)
+	)
+	(
+		config
+		. set_value(
+			"Color",
+			RARITY_RARE_COLOR_KEY,
+			{
+				"name": "Rare Color",
+				"tooltip": "Preview list color for rare items.",
+				"default": Color(0.45, 0.78, 1.0, 0.95),
+				"value": Color(0.45, 0.78, 1.0, 0.95),
+				"allowAlpha": true,
+				"menu_pos": 70,
+			}
+		)
+	)
+	(
+		config
+		. set_value(
+			"Color",
+			RARITY_EPIC_COLOR_KEY,
+			{
+				"name": "Epic Color",
+				"tooltip": "Preview list color for epic items.",
+				"default": Color(0.88, 0.52, 1.0, 0.95),
+				"value": Color(0.88, 0.52, 1.0, 0.95),
+				"allowAlpha": true,
+				"menu_pos": 80,
+			}
+		)
+	)
+	(
+		config
+		. set_value(
+			"Color",
+			RARITY_LEGENDARY_COLOR_KEY,
+			{
+				"name": "Legendary Color",
+				"tooltip": "Preview list color for legendary items.",
+				"default": Color(1.0, 0.75, 0.28, 0.95),
+				"value": Color(1.0, 0.75, 0.28, 0.95),
+				"allowAlpha": true,
+				"menu_pos": 90,
 			}
 		)
 	)

@@ -46,6 +46,23 @@ static func float_setting(owner: Node, setting_key: String, default_value: float
 	return default_value
 
 
+static func color_setting(owner: Node, setting_key: String, default_value: Color) -> Color:
+	var config_node := owner.get_node_or_null("/root/ContainerPeekConfig")
+	if config_node != null and config_node.has_method("get_color"):
+		var config_value: Variant = config_node.call("get_color", setting_key, default_value)
+		if config_value is Color:
+			return config_value
+
+	var config := ConfigFile.new()
+	if config.load(CONFIG_PATH) == OK:
+		var value: Variant = config.get_value("Color", setting_key, default_value)
+		if value is Dictionary:
+			value = (value as Dictionary).get("value", default_value)
+		if value is Color:
+			return value
+	return default_value
+
+
 static func event_label(event: InputEvent) -> String:
 	if event is InputEventMouseButton:
 		return _mouse_button_text((event as InputEventMouseButton).button_index)

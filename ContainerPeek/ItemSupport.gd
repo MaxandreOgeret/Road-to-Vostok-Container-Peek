@@ -281,21 +281,28 @@ static func format_condition(values: Array) -> String:
 	return "%d-%d%%" % [min_value, max_value]
 
 
-static func rarity_color(rarity: String, enabled: bool) -> Color:
+static func rarity_color(rarity: String, enabled: bool, custom_colors: Dictionary = {}) -> Color:
 	if not enabled:
 		return Color(1.0, 1.0, 1.0, 0.78)
 
 	match normalize_rarity_value(rarity).to_lower():
 		"legendary":
-			return Color(1.0, 0.75, 0.28, 0.95)
+			return rarity_color_override(custom_colors, "legendary", Color(1.0, 0.75, 0.28, 0.95))
 		"epic":
-			return Color(0.88, 0.52, 1.0, 0.95)
+			return rarity_color_override(custom_colors, "epic", Color(0.88, 0.52, 1.0, 0.95))
 		"rare":
-			return Color(0.45, 0.78, 1.0, 0.95)
+			return rarity_color_override(custom_colors, "rare", Color(0.45, 0.78, 1.0, 0.95))
 		"uncommon":
-			return Color(0.56, 0.9, 0.56, 0.92)
+			return rarity_color_override(custom_colors, "uncommon", Color(0.56, 0.9, 0.56, 0.92))
 		_:
-			return Color(1.0, 1.0, 1.0, 0.78)
+			return rarity_color_override(custom_colors, "common", Color(1.0, 1.0, 1.0, 0.78))
+
+
+static func rarity_color_override(custom_colors: Dictionary, key: String, fallback: Color) -> Color:
+	var configured := custom_colors.get(key, fallback)
+	if configured is Color:
+		return configured
+	return fallback
 
 
 static func normalize_rarity_value(rarity: Variant) -> String:
