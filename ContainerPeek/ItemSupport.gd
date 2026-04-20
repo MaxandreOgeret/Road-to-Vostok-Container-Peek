@@ -85,13 +85,14 @@ static func slot_total_weight(slot: Variant) -> float:
 		return 0.0
 
 	var raw_weight: Variant = (item as Object).get("weight")
-	var unit_weight := 0.0
+	var slot_weight := 0.0
 	if raw_weight is float:
-		unit_weight = float(raw_weight)
+		slot_weight = float(raw_weight)
 	elif raw_weight is int:
-		unit_weight = float(raw_weight)
+		slot_weight = float(raw_weight)
 
-	return unit_weight * float(slot_amount(slot))
+	# RTV already reports effective slot weight here, including stack size and loaded contents.
+	return maxf(0.0, slot_weight)
 
 
 static func slot_rarity(slot: Variant) -> String:
