@@ -34,6 +34,7 @@ var _last_render_target_id := -1
 var _last_render_selection := -1
 var _last_render_visible_count := -1
 var _last_render_total_count := -1
+var _last_render_summary_signature := ""
 var _last_render_loading := false
 var _last_render_rarity_colors := true
 var _bootstrapped := false
@@ -49,6 +50,9 @@ var _hint_label: Label
 var _ui_host: Node
 var _ui_theme: Theme
 var _ui_tile: Texture2D
+var _item_font: Font
+var _item_font_size := 13
+var _item_text_width_cache: Dictionary = {}
 var _interactor: RayCast3D
 var _hud: Node
 
@@ -388,6 +392,8 @@ func _teardown_runtime() -> void:
 	_ui_host = null
 	_interactor = null
 	_hud = null
+	_item_font = null
+	_item_text_width_cache.clear()
 
 
 func _hide_panel() -> void:
@@ -399,6 +405,7 @@ func _hide_panel() -> void:
 	_last_render_selection = -1
 	_last_render_visible_count = -1
 	_last_render_total_count = -1
+	_last_render_summary_signature = ""
 	_last_render_loading = false
 	_last_render_rarity_colors = true
 	if _panel == null:
@@ -420,18 +427,20 @@ func _show_panel(data: Dictionary, delta: float) -> void:
 
 	if _last_focus_node != null:
 		var summaries := ItemSupport.item_summaries(_last_focus_node)
+		var summary_signature := _summaries_signature(summaries)
 		_advance_rummage_progress(_current_target_id, summaries.size(), delta)
-		if _should_rerender_rows(summaries.size()):
+		if _should_rerender_rows(summaries.size(), summary_signature):
 			_render_item_rows(_last_focus_node, summaries)
 			_last_render_target_id = _current_target_id
 			_last_render_selection = int(_selection_by_id.get(_current_target_id, 0))
 			_last_render_visible_count = _visible_item_names.size()
 			_last_render_total_count = summaries.size()
-			_last_render_loading = _is_rummage_loading(_current_target_id, summaries.size())
+			_last_render_summary_signature = summary_signature
+			_last_render_loading = _is_rummage_loading(_current_target_id)
 			_last_render_rarity_colors = _rarity_colors_enabled()
-		_update_loading_indicator(_visible_item_names.size(), summaries.size())
+		_update_loading_indicator(summaries.size())
 	else:
-		_update_loading_indicator(0, 0)
+		_update_loading_indicator(0)
 
 	_panel.visible = true
 	_panel.size = _panel.get_combined_minimum_size()
@@ -444,9 +453,9 @@ func _show_panel(data: Dictionary, delta: float) -> void:
 	_panel.position = pos
 
 
-func _should_rerender_rows(total_item_count: int) -> bool:
+func _should_rerender_rows(total_item_count: int, summary_signature: String) -> bool:
 	var visible_count := _revealed_item_count(_current_target_id, total_item_count)
-	var loading := _is_rummage_loading(_current_target_id, total_item_count)
+	var loading := _is_rummage_loading(_current_target_id)
 	if _current_target_id != _last_render_target_id:
 		return true
 	if int(_selection_by_id.get(_current_target_id, 0)) != _last_render_selection:
@@ -454,6 +463,8 @@ func _should_rerender_rows(total_item_count: int) -> bool:
 	if visible_count != _last_render_visible_count:
 		return true
 	if total_item_count != _last_render_total_count:
+		return true
+	if summary_signature != _last_render_summary_signature:
 		return true
 	if loading != _last_render_loading:
 		return true
@@ -499,7 +510,7 @@ func _revealed_item_count(container_id: int, total_item_count: int) -> int:
 	return clampi(int(floor(elapsed / delay)), 0, total_item_count)
 
 
-func _is_rummage_loading(container_id: int, total_item_count: int) -> bool:
+func _is_rummage_loading(container_id: int) -> bool:
 	if _rummage_seconds_per_item() <= 0.0:
 		return false
 	var state := _rummage_progress_by_id.get(container_id, {})
@@ -518,18 +529,37 @@ func _loading_animation_phase() -> int:
 	return int(floor(float(Time.get_ticks_msec()) / (LOADING_FRAME_SECONDS * 1000.0))) % LOADING_DOTS.size()
 
 
-func _loading_text(revealed_count: int, total_item_count: int) -> String:
+func _loading_text() -> String:
 	return "Rummaging%s" % LOADING_DOTS[_loading_animation_phase()]
 
 
-func _update_loading_indicator(revealed_count: int, total_item_count: int) -> void:
+func _update_loading_indicator(total_item_count: int) -> void:
 	if _loading_label == null:
 		return
-	var loading := _is_rummage_loading(_current_target_id, total_item_count)
+	var loading := _is_rummage_loading(_current_target_id)
 	_loading_label.visible = loading
 	if loading:
-		_loading_label.text = _loading_text(revealed_count, total_item_count)
+		_loading_label.text = _loading_text()
 	_sync_placeholder_animation()
+
+
+func _summaries_signature(summaries: Dictionary) -> String:
+	if summaries.is_empty():
+		return ""
+
+	var names: Array = summaries.keys()
+	names.sort()
+	var signature := ""
+	for item_name in names:
+		var summary := summaries[item_name] as Dictionary
+		signature += "%s|%d|%.3f|%s|%s\n" % [
+			str(item_name),
+			int(summary.get("amount", 0)),
+			float(summary.get("weight", 0.0)),
+			str(summary.get("condition", "")),
+			str(summary.get("rarity", ItemSupport.RARITY_COMMON)),
+		]
+	return signature
 
 
 func _sync_placeholder_animation() -> void:
@@ -681,7 +711,7 @@ func _render_item_rows(node: Node, summaries: Dictionary) -> void:
 
 	if summaries.is_empty():
 		_visible_item_names.clear()
-		if _is_rummage_loading(node.get_instance_id(), 0):
+		if _is_rummage_loading(node.get_instance_id()):
 			_items_box.add_child(_make_placeholder_row(0, ITEM_COL_MIN_WIDTH))
 			return
 		_items_box.add_child(_make_row("Empty", false, false))
@@ -789,14 +819,29 @@ func _item_name_column_width(summaries: Dictionary) -> float:
 
 
 func _measure_item_text_width(text: String) -> float:
+	if _item_text_width_cache.has(text):
+		return float(_item_text_width_cache[text])
+
+	var font := _item_row_font()
+	var font_size := _item_font_size
+	var width := maxf(ITEM_COL_MIN_WIDTH, float(text.length() * 7))
+	if font != null:
+		width = ceil(font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1.0, font_size).x)
+
+	_item_text_width_cache[text] = width
+	return width
+
+
+func _item_row_font() -> Font:
+	if _item_font != null:
+		return _item_font
+
 	var probe := Label.new()
 	probe.theme = _ui_theme
-	probe.add_theme_font_size_override("font_size", 13)
-	var font := probe.get_theme_font("font")
-	var font_size := probe.get_theme_font_size("font_size")
-	if font != null:
-		return ceil(font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1.0, font_size).x)
-	return maxf(ITEM_COL_MIN_WIDTH, float(text.length() * 7))
+	probe.add_theme_font_size_override("font_size", _item_font_size)
+	_item_font = probe.get_theme_font("font")
+	_item_font_size = probe.get_theme_font_size("font_size")
+	return _item_font
 
 
 func _make_placeholder_row(index: int, item_col_width: float) -> Control:
@@ -1090,7 +1135,7 @@ func _current_selected_item_name() -> String:
 func _current_target_is_loading() -> bool:
 	if _last_focus_node == null or not is_instance_valid(_last_focus_node) or _current_target_id == -1:
 		return false
-	return _is_rummage_loading(_current_target_id, ItemSupport.item_summaries(_last_focus_node).size())
+	return _is_rummage_loading(_current_target_id)
 
 
 func _try_transfer_selected() -> bool:

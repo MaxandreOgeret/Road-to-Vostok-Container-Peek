@@ -10,7 +10,7 @@
 
 - Shows a compact loot menu when the game itself considers a container interactable.
 - Uses the game's `Interactor` ray and HUD prompt instead of a separate scene scan.
-- Limits activation range to `2.5m`.
+- Uses the container's own interaction range when available, with a `2.5m` fallback.
 - Shows item, total stack weight, and condition columns with a sticky table header.
 - Uses a real scrollbar for longer containers.
 - Supports optional rarity-colored item names.

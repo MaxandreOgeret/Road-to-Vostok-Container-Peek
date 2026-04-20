@@ -3,15 +3,6 @@ extends RefCounted
 const RARITY_COMMON := "Common"
 
 
-static func item_counts(node: Node) -> Dictionary:
-	var result: Dictionary = {}
-	var summaries := item_summaries(node)
-	for item_name in summaries.keys():
-		var summary := summaries[item_name] as Dictionary
-		result[item_name] = int(summary.get("amount", 0))
-	return result
-
-
 static func item_summaries(node: Node) -> Dictionary:
 	var result: Dictionary = {}
 	for slot in slot_source(node):
@@ -222,14 +213,6 @@ static func candidate_range(node: Node) -> float:
 	return 2.5
 
 
-static func selected_slot(container_node: Node, selection_by_id: Dictionary) -> Variant:
-	var selected_name := selected_item_name(container_node, selection_by_id)
-	if selected_name.is_empty():
-		return null
-
-	return slot_for_item_name(container_node, selected_name)
-
-
 static func slot_for_item_name(container_node: Node, item_name: String) -> Variant:
 	if item_name.is_empty():
 		return null
@@ -238,18 +221,6 @@ static func slot_for_item_name(container_node: Node, item_name: String) -> Varia
 		if slot_display_name(slot) == item_name:
 			return slot
 	return null
-
-
-static func selected_item_name(container_node: Node, selection_by_id: Dictionary) -> String:
-	var counts := item_counts(container_node)
-	if counts.is_empty():
-		return ""
-
-	var names: Array = counts.keys()
-	names.sort()
-	var selected_index := int(selection_by_id.get(container_node.get_instance_id(), 0))
-	selected_index = clampi(selected_index, 0, maxi(names.size() - 1, 0))
-	return str(names[selected_index])
 
 
 static func slot_display_name(slot: Variant) -> String:
@@ -273,7 +244,3 @@ static func remove_slot_from_container(container_node: Node, slot: Variant) -> v
 
 	source.remove_at(index)
 	container_node.set(property_name, source)
-
-
-static func selectable_item_count(node: Node) -> int:
-	return item_counts(node).size()
