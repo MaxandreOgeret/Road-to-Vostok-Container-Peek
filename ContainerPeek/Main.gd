@@ -41,6 +41,10 @@ var _interactor: RayCast3D
 var _hud: Node
 
 
+func _ready() -> void:
+	process_mode = Node.PROCESS_MODE_ALWAYS
+
+
 func _process(delta: float) -> void:
 	if _bootstrapped and not _runtime_ready():
 		_teardown_runtime()
@@ -807,6 +811,16 @@ func _cursor_screen_position() -> Vector2:
 func _should_hide() -> bool:
 	if get_tree().paused:
 		return true
+	return _interface_inventory_open()
+
+
+func _interface_inventory_open() -> bool:
+	if _game_data_interface_open():
+		return true
+	return _interface_node_is_open()
+
+
+func _game_data_interface_open() -> bool:
 	if not ResourceLoader.exists(GAME_DATA_RES):
 		return false
 	if _game_data == null:
@@ -815,6 +829,16 @@ func _should_hide() -> bool:
 		return false
 	var flag: Variant = _game_data.get("interface")
 	return flag != null and bool(flag)
+
+
+func _interface_node_is_open() -> bool:
+	var interface_node := _resolve_interface_node()
+	if interface_node == null or not is_instance_valid(interface_node):
+		return false
+	if interface_node is CanvasItem:
+		var canvas_item := interface_node as CanvasItem
+		return canvas_item.visible and canvas_item.is_visible_in_tree()
+	return false
 
 
 func _debug_name(node: Node) -> String:
