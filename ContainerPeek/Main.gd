@@ -19,7 +19,7 @@ const TRANSFER_ACTION := &"container_peek_transfer"
 const TAKE_ALL_ACTION := &"container_peek_take_all"
 const RUMMAGE_TIME_KEY := "rummage_seconds_per_item"
 const LOADING_FRAME_SECONDS := 0.2
-const LOADING_DOTS := ["", ".", "..", "..."]
+const LOADING_SPINNER_FRAMES := ["|", "/", "-", "\\"]
 const PLACEHOLDER_BAR_HEIGHT := 8.0
 
 var _tracked: Dictionary = {}
@@ -43,9 +43,12 @@ var _canvas: CanvasLayer
 var _panel: PanelContainer
 var _title_label: Label
 var _header_margin: MarginContainer
+var _header_item_label: Label
 var _item_scroll: ScrollContainer
 var _items_box: VBoxContainer
+var _loading_row: HBoxContainer
 var _loading_label: Label
+var _loading_spinner_label: Label
 var _hint_label: Label
 var _ui_host: Node
 var _ui_theme: Theme
@@ -196,20 +199,36 @@ func _build_ui(host: Node) -> void:
 	_item_scroll.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_item_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	_item_scroll.custom_minimum_size = Vector2(0.0, float(MAX_VISIBLE_ITEMS * ITEM_ROW_HEIGHT))
+	_item_scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	root.add_child(_item_scroll)
 
 	_items_box = VBoxContainer.new()
 	_items_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_items_box.add_theme_constant_override("separation", 2)
+	_items_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_item_scroll.add_child(_items_box)
+
+	_loading_row = HBoxContainer.new()
+	_loading_row.modulate = Color(1.0, 1.0, 1.0, 0.0)
+	_loading_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	_loading_row.add_theme_constant_override("separation", 6)
+	root.add_child(_loading_row)
 
 	_loading_label = Label.new()
 	_loading_label.theme = _ui_theme
-	_loading_label.visible = false
+	_loading_label.text = "Rummaging"
 	_loading_label.add_theme_font_size_override("font_size", 12)
 	_loading_label.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0, 0.55))
-	_loading_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	root.add_child(_loading_label)
+	_loading_row.add_child(_loading_label)
+
+	_loading_spinner_label = Label.new()
+	_loading_spinner_label.theme = _ui_theme
+	_loading_spinner_label.text = LOADING_SPINNER_FRAMES[0]
+	_loading_spinner_label.custom_minimum_size = Vector2(10.0, 0.0)
+	_loading_spinner_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_loading_spinner_label.add_theme_font_size_override("font_size", 12)
+	_loading_spinner_label.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0, 0.72))
+	_loading_row.add_child(_loading_spinner_label)
 
 	root.add_child(_make_divider())
 
@@ -385,9 +404,12 @@ func _teardown_runtime() -> void:
 	_panel = null
 	_title_label = null
 	_header_margin = null
+	_header_item_label = null
 	_item_scroll = null
 	_items_box = null
+	_loading_row = null
 	_loading_label = null
+	_loading_spinner_label = null
 	_hint_label = null
 	_ui_host = null
 	_interactor = null
@@ -411,8 +433,8 @@ func _hide_panel() -> void:
 	if _panel == null:
 		return
 	_panel.visible = false
-	if _loading_label != null:
-		_loading_label.visible = false
+	if _loading_row != null:
+		_loading_row.modulate = Color(1.0, 1.0, 1.0, 0.0)
 
 
 func _show_panel(data: Dictionary, delta: float) -> void:
@@ -540,20 +562,20 @@ func _shelter_bypasses_rummaging() -> bool:
 
 
 func _loading_animation_phase() -> int:
-	return int(floor(float(Time.get_ticks_msec()) / (LOADING_FRAME_SECONDS * 1000.0))) % LOADING_DOTS.size()
+	return int(floor(float(Time.get_ticks_msec()) / (LOADING_FRAME_SECONDS * 1000.0))) % LOADING_SPINNER_FRAMES.size()
 
 
-func _loading_text() -> String:
-	return "Rummaging%s" % LOADING_DOTS[_loading_animation_phase()]
+func _loading_spinner_text() -> String:
+	return LOADING_SPINNER_FRAMES[_loading_animation_phase()]
 
 
 func _update_loading_indicator(total_item_count: int) -> void:
-	if _loading_label == null:
+	if _loading_row == null or _loading_label == null or _loading_spinner_label == null:
 		return
 	var loading := _is_rummage_loading(_current_target_id)
-	_loading_label.visible = loading
+	_loading_row.modulate = Color(1.0, 1.0, 1.0, 1.0 if loading else 0.0)
 	if loading:
-		_loading_label.text = _loading_text()
+		_loading_spinner_label.text = _loading_spinner_text()
 	_sync_placeholder_animation()
 
 
@@ -724,6 +746,7 @@ func _render_item_rows(node: Node, summaries: Dictionary) -> void:
 		_items_box.add_child(_make_row("LOCKED", false, true))
 
 	if summaries.is_empty():
+		_set_item_column_width(ITEM_COL_MIN_WIDTH)
 		_visible_item_names.clear()
 		if _is_rummage_loading(node.get_instance_id()):
 			_items_box.add_child(_make_placeholder_row(0, ITEM_COL_MIN_WIDTH))
@@ -734,6 +757,7 @@ func _render_item_rows(node: Node, summaries: Dictionary) -> void:
 	var names: Array = summaries.keys()
 	names.sort()
 	var item_col_width := _item_name_column_width(summaries)
+	_set_item_column_width(item_col_width)
 	var revealed_count := _revealed_item_count(node.get_instance_id(), names.size())
 	var visible_names: Array = []
 	for i in range(revealed_count):
@@ -872,12 +896,14 @@ func _make_placeholder_row(index: int, item_col_width: float) -> Control:
 
 	var margins := MarginContainer.new()
 	margins.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	margins.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	margins.add_theme_constant_override("margin_top", 5)
 	margins.add_theme_constant_override("margin_bottom", 5)
 	row.add_child(margins)
 
 	var box := HBoxContainer.new()
 	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	box.add_theme_constant_override("separation", COL_SEPARATION)
 	margins.add_child(box)
 
@@ -917,13 +943,14 @@ func _make_header_row() -> Control:
 	prefix_spacer.custom_minimum_size = Vector2(ROW_PREFIX_WIDTH, 0.0)
 	row.add_child(prefix_spacer)
 
-	var item_label := Label.new()
-	item_label.theme = _ui_theme
-	item_label.text = "Item"
-	item_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	item_label.add_theme_font_size_override("font_size", 11)
-	item_label.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0, 0.5))
-	row.add_child(item_label)
+	_header_item_label = Label.new()
+	_header_item_label.theme = _ui_theme
+	_header_item_label.text = "Item"
+	_header_item_label.custom_minimum_size = Vector2(ITEM_COL_MIN_WIDTH, 0.0)
+	_header_item_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_header_item_label.add_theme_font_size_override("font_size", 11)
+	_header_item_label.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0, 0.5))
+	row.add_child(_header_item_label)
 
 	var weight_label := Label.new()
 	weight_label.theme = _ui_theme
@@ -944,6 +971,12 @@ func _make_header_row() -> Control:
 	row.add_child(condition_label)
 
 	return row
+
+
+func _set_item_column_width(item_col_width: float) -> void:
+	if _header_item_label == null:
+		return
+	_header_item_label.custom_minimum_size = Vector2(maxf(ITEM_COL_MIN_WIDTH, item_col_width), 0.0)
 
 
 func _make_item_row(
@@ -988,6 +1021,7 @@ func _make_item_row(
 
 	var box := HBoxContainer.new()
 	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	box.add_theme_constant_override("separation", COL_SEPARATION)
 	row.add_child(box)
 
