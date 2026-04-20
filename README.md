@@ -14,6 +14,7 @@
 - Shows item, total stack weight, and condition columns with a sticky table header.
 - Uses a real scrollbar for longer containers.
 - Supports optional rarity-colored item names.
+- Supports optional first-look rummaging with a configurable per-item reveal delay and loading indicator.
 - Lets you transfer the selected entry or take everything from the current container.
 - Plays the same error beep the base game uses when transfer fails because there is no inventory space.
 - Supports rebinding through Mod Configuration Menu when MCM is installed.
@@ -29,7 +30,9 @@ These defaults can be rebound in MCM.
 ## Known Behavior
 
 - The preview groups identical item names into a single row.
+- When rummage delay is above `0`, new containers reveal grouped rows over time; setting it to `0` keeps the current instant list behavior.
 - Because of that grouping, `F` transfers the first matching stack for the selected name, not a specific stack instance.
+- `R` is unavailable while rummaging is still in progress.
 - `R` stops on the first failed insert so partial take-all stays predictable when inventory space runs out.
 - The condition column is shown only for item types that plausibly use durability.
 

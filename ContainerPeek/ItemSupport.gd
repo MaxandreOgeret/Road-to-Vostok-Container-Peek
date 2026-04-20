@@ -227,8 +227,15 @@ static func selected_slot(container_node: Node, selection_by_id: Dictionary) -> 
 	if selected_name.is_empty():
 		return null
 
+	return slot_for_item_name(container_node, selected_name)
+
+
+static func slot_for_item_name(container_node: Node, item_name: String) -> Variant:
+	if item_name.is_empty():
+		return null
+
 	for slot in slot_source(container_node):
-		if slot_display_name(slot) == selected_name:
+		if slot_display_name(slot) == item_name:
 			return slot
 	return null
 

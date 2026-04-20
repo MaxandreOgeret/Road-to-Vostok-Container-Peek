@@ -11,6 +11,7 @@ const MCM_HELPERS_RES := "res://ModConfigurationMenu/Scripts/Doink Oink/MCM_Help
 const TRANSFER_ACTION := &"container_peek_transfer"
 const TAKE_ALL_ACTION := &"container_peek_take_all"
 const RARITY_COLORS_KEY := "rarity_colors"
+const RUMMAGE_TIME_KEY := "rummage_seconds_per_item"
 
 var _config := ConfigFile.new()
 var _mcm_helpers: Resource
@@ -56,6 +57,17 @@ func get_bool(setting_key: String, default_value: bool = false) -> bool:
 	if value is Dictionary:
 		return bool((value as Dictionary).get("value", default_value))
 	return bool(value)
+
+
+func get_float(setting_key: String, default_value: float = 0.0) -> float:
+	var value: Variant = _config.get_value("Float", setting_key, default_value)
+	if value is Dictionary:
+		value = (value as Dictionary).get("value", default_value)
+	if value is float:
+		return float(value)
+	if value is int:
+		return float(value)
+	return default_value
 
 
 func _on_config_saved(config: ConfigFile) -> void:
@@ -114,6 +126,23 @@ func _build_default_config() -> ConfigFile:
 				"default": true,
 				"value": true,
 				"menu_pos": 30,
+			}
+		)
+	)
+	(
+		config
+		. set_value(
+			"Float",
+			RUMMAGE_TIME_KEY,
+			{
+				"name": "Rummage Time / Item",
+				"tooltip": "Seconds each item row takes to appear the first time you inspect a container. Set to 0 to disable.",
+				"default": 0.0,
+				"value": 0.0,
+				"minRange": 0.0,
+				"maxRange": 2.0,
+				"step": 0.05,
+				"menu_pos": 40,
 			}
 		)
 	)

@@ -29,6 +29,23 @@ static func bool_setting(owner: Node, setting_key: String, default_value: bool =
 	return default_value
 
 
+static func float_setting(owner: Node, setting_key: String, default_value: float = 0.0) -> float:
+	var config_node := owner.get_node_or_null("/root/ContainerPeekConfig")
+	if config_node != null and config_node.has_method("get_float"):
+		return float(config_node.call("get_float", setting_key, default_value))
+
+	var config := ConfigFile.new()
+	if config.load(CONFIG_PATH) == OK:
+		var value: Variant = config.get_value("Float", setting_key, default_value)
+		if value is Dictionary:
+			value = (value as Dictionary).get("value", default_value)
+		if value is float:
+			return float(value)
+		if value is int:
+			return float(value)
+	return default_value
+
+
 static func event_label(event: InputEvent) -> String:
 	if event is InputEventMouseButton:
 		return _mouse_button_text((event as InputEventMouseButton).button_index)

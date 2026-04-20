@@ -16,14 +16,22 @@ const WEIGHT_COL_WIDTH := 56.0
 const CONDITION_COL_WIDTH := 62.0
 const TRANSFER_ACTION := &"container_peek_transfer"
 const TAKE_ALL_ACTION := &"container_peek_take_all"
+const RUMMAGE_TIME_KEY := "rummage_seconds_per_item"
+const LOADING_FRAME_SECONDS := 0.2
+const LOADING_DOTS := ["", ".", "..", "..."]
 
 var _tracked: Dictionary = {}
 var _game_data: Resource
 var _selection_by_id: Dictionary = {}
+var _rummage_progress_by_id: Dictionary = {}
 var _current_target_id := -1
+var _visible_item_names: Array = []
 var _last_focus_node: Node3D
 var _last_render_target_id := -1
 var _last_render_selection := -1
+var _last_render_visible_count := -1
+var _last_render_total_count := -1
+var _last_render_loading := false
 var _last_render_rarity_colors := true
 var _bootstrapped := false
 
@@ -33,6 +41,7 @@ var _title_label: Label
 var _header_margin: MarginContainer
 var _item_scroll: ScrollContainer
 var _items_box: VBoxContainer
+var _loading_label: Label
 var _hint_label: Label
 var _ui_host: Node
 var _ui_theme: Theme
@@ -68,7 +77,7 @@ func _process(delta: float) -> void:
 		_hide_panel()
 		return
 
-	_show_panel(target)
+	_show_panel(target, delta)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -108,7 +117,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	if not (node is Node):
 		return
 
-	var item_count := ItemSupport.selectable_item_count(node as Node)
+	var item_count := _visible_item_names.size()
 	if item_count <= 0:
 		return
 
@@ -186,6 +195,14 @@ func _build_ui(host: Node) -> void:
 	_items_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_items_box.add_theme_constant_override("separation", 2)
 	_item_scroll.add_child(_items_box)
+
+	_loading_label = Label.new()
+	_loading_label.theme = _ui_theme
+	_loading_label.visible = false
+	_loading_label.add_theme_font_size_override("font_size", 12)
+	_loading_label.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0, 0.55))
+	_loading_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	root.add_child(_loading_label)
 
 	root.add_child(_make_divider())
 
@@ -351,6 +368,7 @@ func _find_interactor(node: Node) -> RayCast3D:
 func _teardown_runtime() -> void:
 	_hide_panel()
 	_tracked.clear()
+	_rummage_progress_by_id.clear()
 	_last_focus_node = null
 	_bootstrapped = false
 	if _canvas != null and is_instance_valid(_canvas):
@@ -361,6 +379,7 @@ func _teardown_runtime() -> void:
 	_header_margin = null
 	_item_scroll = null
 	_items_box = null
+	_loading_label = null
 	_hint_label = null
 	_ui_host = null
 	_interactor = null
@@ -369,16 +388,22 @@ func _teardown_runtime() -> void:
 
 func _hide_panel() -> void:
 	_current_target_id = -1
+	_visible_item_names.clear()
 	_last_focus_node = null
 	_last_render_target_id = -1
 	_last_render_selection = -1
+	_last_render_visible_count = -1
+	_last_render_total_count = -1
+	_last_render_loading = false
 	_last_render_rarity_colors = true
 	if _panel == null:
 		return
 	_panel.visible = false
+	if _loading_label != null:
+		_loading_label.visible = false
 
 
-func _show_panel(data: Dictionary) -> void:
+func _show_panel(data: Dictionary, delta: float) -> void:
 	if _panel == null or _title_label == null:
 		return
 	_current_target_id = int(data.get("id", -1))
@@ -388,11 +413,20 @@ func _show_panel(data: Dictionary) -> void:
 	if _hint_label != null:
 		_hint_label.text = _hint_text()
 
-	if _last_focus_node != null and _should_rerender_rows():
-		_render_item_rows(_last_focus_node)
-		_last_render_target_id = _current_target_id
-		_last_render_selection = int(_selection_by_id.get(_current_target_id, 0))
-		_last_render_rarity_colors = _rarity_colors_enabled()
+	if _last_focus_node != null:
+		var summaries := ItemSupport.item_summaries(_last_focus_node)
+		_advance_rummage_progress(_current_target_id, summaries.size(), delta)
+		if _should_rerender_rows(summaries.size()):
+			_render_item_rows(_last_focus_node, summaries)
+			_last_render_target_id = _current_target_id
+			_last_render_selection = int(_selection_by_id.get(_current_target_id, 0))
+			_last_render_visible_count = _visible_item_names.size()
+			_last_render_total_count = summaries.size()
+			_last_render_loading = _is_rummage_loading(_current_target_id, summaries.size())
+			_last_render_rarity_colors = _rarity_colors_enabled()
+		_update_loading_indicator(_visible_item_names.size(), summaries.size())
+	else:
+		_update_loading_indicator(0, 0)
 
 	_panel.visible = true
 	_panel.size = _panel.get_combined_minimum_size()
@@ -405,12 +439,83 @@ func _show_panel(data: Dictionary) -> void:
 	_panel.position = pos
 
 
-func _should_rerender_rows() -> bool:
+func _should_rerender_rows(total_item_count: int) -> bool:
+	var visible_count := _revealed_item_count(_current_target_id, total_item_count)
+	var loading := visible_count < total_item_count
 	if _current_target_id != _last_render_target_id:
 		return true
 	if int(_selection_by_id.get(_current_target_id, 0)) != _last_render_selection:
 		return true
+	if visible_count != _last_render_visible_count:
+		return true
+	if total_item_count != _last_render_total_count:
+		return true
+	if loading != _last_render_loading:
+		return true
 	return _rarity_colors_enabled() != _last_render_rarity_colors
+
+
+func _advance_rummage_progress(container_id: int, total_item_count: int, delta: float) -> void:
+	if container_id == -1:
+		return
+
+	var delay := _rummage_seconds_per_item()
+	var state := _rummage_progress_by_id.get(container_id, {})
+	if delay <= 0.0 or total_item_count <= 0:
+		state["elapsed"] = maxf(0.0, delay * float(total_item_count))
+		state["completed"] = true
+		_rummage_progress_by_id[container_id] = state
+		return
+
+	if bool(state.get("completed", false)):
+		return
+
+	var full_duration := delay * float(total_item_count)
+	var elapsed := minf(full_duration, float(state.get("elapsed", 0.0)) + maxf(0.0, delta))
+	state["elapsed"] = elapsed
+	state["completed"] = elapsed >= full_duration
+	_rummage_progress_by_id[container_id] = state
+
+
+func _revealed_item_count(container_id: int, total_item_count: int) -> int:
+	if total_item_count <= 0:
+		return 0
+
+	var delay := _rummage_seconds_per_item()
+	if delay <= 0.0:
+		return total_item_count
+
+	var state := _rummage_progress_by_id.get(container_id, {})
+	if bool(state.get("completed", false)):
+		return total_item_count
+
+	var elapsed := float(state.get("elapsed", 0.0))
+	return clampi(int(floor(elapsed / delay)), 0, total_item_count)
+
+
+func _is_rummage_loading(container_id: int, total_item_count: int) -> bool:
+	return _revealed_item_count(container_id, total_item_count) < total_item_count
+
+
+func _rummage_seconds_per_item() -> float:
+	return maxf(0.0, ConfigSupport.float_setting(self, RUMMAGE_TIME_KEY, 0.0))
+
+
+func _loading_animation_phase() -> int:
+	return int(floor(float(Time.get_ticks_msec()) / (LOADING_FRAME_SECONDS * 1000.0))) % LOADING_DOTS.size()
+
+
+func _loading_text(revealed_count: int, total_item_count: int) -> String:
+	return "Rummaging%s  %d/%d" % [LOADING_DOTS[_loading_animation_phase()], revealed_count, total_item_count]
+
+
+func _update_loading_indicator(revealed_count: int, total_item_count: int) -> void:
+	if _loading_label == null:
+		return
+	var loading := revealed_count < total_item_count
+	_loading_label.visible = loading
+	if loading:
+		_loading_label.text = _loading_text(revealed_count, total_item_count)
 
 
 func _looks_like_container(node: Node) -> bool:
@@ -538,7 +643,7 @@ func _resolve_container_from_node(node: Node) -> Node3D:
 	return null
 
 
-func _render_item_rows(node: Node) -> void:
+func _render_item_rows(node: Node, summaries: Dictionary) -> void:
 	if _items_box == null:
 		return
 	for child in _items_box.get_children():
@@ -547,20 +652,26 @@ func _render_item_rows(node: Node) -> void:
 	if bool(node.get("locked")):
 		_items_box.add_child(_make_row("LOCKED", false, true))
 
-	var summaries := ItemSupport.item_summaries(node)
 	if summaries.is_empty():
+		_visible_item_names.clear()
 		_items_box.add_child(_make_row("Empty", false, false))
 		return
 
 	var names: Array = summaries.keys()
 	names.sort()
+	var revealed_count := _revealed_item_count(node.get_instance_id(), names.size())
+	var visible_names: Array = []
+	for i in range(revealed_count):
+		visible_names.append(names[i])
+	_visible_item_names = visible_names
+
 	var selected_index := int(_selection_by_id.get(node.get_instance_id(), 0))
-	selected_index = clampi(selected_index, 0, maxi(names.size() - 1, 0))
+	selected_index = clampi(selected_index, 0, maxi(visible_names.size() - 1, 0))
 	_selection_by_id[node.get_instance_id()] = selected_index
 
 	var selected_row: Control = null
-	for i in range(names.size()):
-		var item_name := str(names[i])
+	for i in range(visible_names.size()):
+		var item_name := str(visible_names[i])
 		var summary := summaries[item_name] as Dictionary
 		var amount := int(summary.get("amount", 1))
 		var line_text := "%s x%d" % [item_name, amount] if amount > 1 else item_name
@@ -850,6 +961,21 @@ func _debug_name(node: Node) -> String:
 	return title
 
 
+func _current_selected_item_name() -> String:
+	if _current_target_id == -1 or _visible_item_names.is_empty():
+		return ""
+
+	var selected_index := int(_selection_by_id.get(_current_target_id, 0))
+	selected_index = clampi(selected_index, 0, maxi(_visible_item_names.size() - 1, 0))
+	return str(_visible_item_names[selected_index])
+
+
+func _current_target_is_loading() -> bool:
+	if _last_focus_node == null or not is_instance_valid(_last_focus_node) or _current_target_id == -1:
+		return false
+	return _is_rummage_loading(_current_target_id, ItemSupport.item_summaries(_last_focus_node).size())
+
+
 func _try_transfer_selected() -> bool:
 	if _last_focus_node != null and is_instance_valid(_last_focus_node):
 		return _try_direct_selected_transfer(_last_focus_node)
@@ -859,6 +985,8 @@ func _try_transfer_selected() -> bool:
 # Stop on the first failed insert so partial take-all stays predictable when space runs out.
 func _try_take_all_selected_container() -> bool:
 	if _last_focus_node == null or not is_instance_valid(_last_focus_node):
+		return false
+	if _current_target_is_loading():
 		return false
 
 	var moved_any := false
@@ -877,7 +1005,8 @@ func _try_take_all_selected_container() -> bool:
 
 
 func _try_direct_selected_transfer(container_node: Node) -> bool:
-	var slot := ItemSupport.selected_slot(container_node, _selection_by_id)
+	var item_name := _current_selected_item_name()
+	var slot := ItemSupport.slot_for_item_name(container_node, item_name)
 	if slot == null:
 		return false
 	return _try_direct_slot_transfer(container_node, slot)
