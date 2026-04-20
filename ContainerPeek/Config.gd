@@ -12,10 +12,9 @@ const TRANSFER_ACTION := &"container_peek_transfer"
 const TAKE_ALL_ACTION := &"container_peek_take_all"
 const RARITY_COLORS_KEY := "rarity_colors"
 const RUMMAGE_TIME_KEY := "rummage_seconds_per_item"
+const PANEL_OPACITY_KEY := "panel_opacity"
 const RARITY_COMMON_COLOR_KEY := "rarity_common_color"
-const RARITY_UNCOMMON_COLOR_KEY := "rarity_uncommon_color"
 const RARITY_RARE_COLOR_KEY := "rarity_rare_color"
-const RARITY_EPIC_COLOR_KEY := "rarity_epic_color"
 const RARITY_LEGENDARY_COLOR_KEY := "rarity_legendary_color"
 
 var _config := ConfigFile.new()
@@ -163,6 +162,23 @@ func _build_default_config() -> ConfigFile:
 	(
 		config
 		. set_value(
+			"Float",
+			PANEL_OPACITY_KEY,
+			{
+				"name": "Menu Opacity",
+				"tooltip": "Opacity of the peek menu background. Does not affect text.",
+				"default": 0.9,
+				"value": 0.9,
+				"minRange": 0.1,
+				"maxRange": 1.0,
+				"step": 0.05,
+				"menu_pos": 45,
+			}
+		)
+	)
+	(
+		config
+		. set_value(
 			"Color",
 			RARITY_COMMON_COLOR_KEY,
 			{
@@ -172,21 +188,6 @@ func _build_default_config() -> ConfigFile:
 				"value": Color(1.0, 1.0, 1.0, 0.78),
 				"allowAlpha": true,
 				"menu_pos": 50,
-			}
-		)
-	)
-	(
-		config
-		. set_value(
-			"Color",
-			RARITY_UNCOMMON_COLOR_KEY,
-			{
-				"name": "Uncommon Color",
-				"tooltip": "Preview list color for uncommon items.",
-				"default": Color(0.56, 0.9, 0.56, 0.92),
-				"value": Color(0.56, 0.9, 0.56, 0.92),
-				"allowAlpha": true,
-				"menu_pos": 60,
 			}
 		)
 	)
@@ -209,21 +210,6 @@ func _build_default_config() -> ConfigFile:
 		config
 		. set_value(
 			"Color",
-			RARITY_EPIC_COLOR_KEY,
-			{
-				"name": "Epic Color",
-				"tooltip": "Preview list color for epic items.",
-				"default": Color(0.88, 0.52, 1.0, 0.95),
-				"value": Color(0.88, 0.52, 1.0, 0.95),
-				"allowAlpha": true,
-				"menu_pos": 80,
-			}
-		)
-	)
-	(
-		config
-		. set_value(
-			"Color",
 			RARITY_LEGENDARY_COLOR_KEY,
 			{
 				"name": "Legendary Color",
@@ -231,7 +217,7 @@ func _build_default_config() -> ConfigFile:
 				"default": Color(1.0, 0.75, 0.28, 0.95),
 				"value": Color(1.0, 0.75, 0.28, 0.95),
 				"allowAlpha": true,
-				"menu_pos": 90,
+				"menu_pos": 80,
 			}
 		)
 	)

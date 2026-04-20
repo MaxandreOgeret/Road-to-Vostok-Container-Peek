@@ -18,10 +18,9 @@ const CONDITION_COL_WIDTH := 62.0
 const TRANSFER_ACTION := &"container_peek_transfer"
 const TAKE_ALL_ACTION := &"container_peek_take_all"
 const RUMMAGE_TIME_KEY := "rummage_seconds_per_item"
+const PANEL_OPACITY_KEY := "panel_opacity"
 const RARITY_COMMON_COLOR_KEY := "rarity_common_color"
-const RARITY_UNCOMMON_COLOR_KEY := "rarity_uncommon_color"
 const RARITY_RARE_COLOR_KEY := "rarity_rare_color"
-const RARITY_EPIC_COLOR_KEY := "rarity_epic_color"
 const RARITY_LEGENDARY_COLOR_KEY := "rarity_legendary_color"
 const LOADING_FRAME_SECONDS := 0.2
 const LOADING_SPINNER_FRAMES := ["|", "/", "-", "\\"]
@@ -48,6 +47,7 @@ var _bootstrapped := false
 var _canvas: CanvasLayer
 var _panel: PanelContainer
 var _title_label: Label
+var _header_bar: ColorRect
 var _header_margin: MarginContainer
 var _header_item_label: Label
 var _item_scroll: ScrollContainer
@@ -55,6 +55,7 @@ var _items_box: VBoxContainer
 var _loading_row: HBoxContainer
 var _loading_label: Label
 var _loading_spinner_label: Label
+var _divider_bar: ColorRect
 var _hint_label: Label
 var _ui_host: Node
 var _ui_theme: Theme
@@ -178,10 +179,9 @@ func _build_ui(host: Node) -> void:
 	root.add_theme_constant_override("separation", 4)
 	margin.add_child(root)
 
-	var header := ColorRect.new()
-	header.custom_minimum_size = Vector2(0.0, 28.0)
-	header.color = Color(1.0, 1.0, 1.0, 0.05)
-	root.add_child(header)
+	_header_bar = ColorRect.new()
+	_header_bar.custom_minimum_size = Vector2(0.0, 28.0)
+	root.add_child(_header_bar)
 
 	_title_label = Label.new()
 	_title_label.theme = _ui_theme
@@ -191,7 +191,7 @@ func _build_ui(host: Node) -> void:
 	_title_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_title_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	_title_label.add_theme_font_size_override("font_size", 13)
-	header.add_child(_title_label)
+	_header_bar.add_child(_title_label)
 
 	_header_margin = MarginContainer.new()
 	_header_margin.add_theme_constant_override("margin_left", ROW_SIDE_PAD)
@@ -236,7 +236,9 @@ func _build_ui(host: Node) -> void:
 	_loading_spinner_label.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0, 0.72))
 	_loading_row.add_child(_loading_spinner_label)
 
-	root.add_child(_make_divider())
+	_divider_bar = _make_divider()
+	root.add_child(_divider_bar)
+	_apply_panel_opacity()
 
 	_hint_label = Label.new()
 	_hint_label.theme = _ui_theme
@@ -266,12 +268,12 @@ func _hint_text() -> String:
 
 func _make_divider() -> ColorRect:
 	var divider := ColorRect.new()
-	divider.color = Color(0.58, 0.65, 0.69, 0.25)
 	divider.custom_minimum_size = Vector2(0.0, 1.0)
 	return divider
 
 
 func _make_panel_style() -> StyleBox:
+	var panel_opacity := _panel_opacity()
 	if _ui_tile != null:
 		var style := StyleBoxTexture.new()
 		style.texture = _ui_tile
@@ -279,17 +281,31 @@ func _make_panel_style() -> StyleBox:
 		style.texture_margin_top = 1.0
 		style.texture_margin_right = 1.0
 		style.texture_margin_bottom = 1.0
-		style.modulate_color = Color(1.0, 1.0, 1.0, 0.86)
+		style.modulate_color = Color(1.0, 1.0, 1.0, 0.86 * panel_opacity)
 		return style
 
 	var fallback := StyleBoxFlat.new()
-	fallback.bg_color = Color(0.06, 0.06, 0.06, 0.92)
-	fallback.border_color = Color(1.0, 1.0, 1.0, 0.18)
+	fallback.bg_color = Color(0.06, 0.06, 0.06, 0.92 * panel_opacity)
+	fallback.border_color = Color(1.0, 1.0, 1.0, 0.18 * panel_opacity)
 	fallback.border_width_left = 1
 	fallback.border_width_top = 1
 	fallback.border_width_right = 1
 	fallback.border_width_bottom = 1
 	return fallback
+
+
+func _apply_panel_opacity() -> void:
+	if _panel != null:
+		_panel.add_theme_stylebox_override("panel", _make_panel_style())
+	var panel_opacity := _panel_opacity()
+	if _header_bar != null:
+		_header_bar.color = Color(1.0, 1.0, 1.0, 0.05 * panel_opacity)
+	if _divider_bar != null:
+		_divider_bar.color = Color(0.58, 0.65, 0.69, 0.25 * panel_opacity)
+
+
+func _panel_opacity() -> float:
+	return clampf(ConfigSupport.float_setting(self, PANEL_OPACITY_KEY, 0.9), 0.1, 1.0)
 
 
 func _try_bootstrap() -> bool:
@@ -447,6 +463,7 @@ func _hide_panel() -> void:
 func _show_panel(data: Dictionary, delta: float) -> void:
 	if _panel == null or _title_label == null:
 		return
+	_apply_panel_opacity()
 	_current_target_id = int(data.get("id", -1))
 	var focused := _tracked.get(_current_target_id, null)
 	_last_focus_node = focused as Node3D if focused is Node3D else null
@@ -1136,14 +1153,8 @@ func _rarity_color_map() -> Dictionary:
 		"common": ConfigSupport.color_setting(
 			self, RARITY_COMMON_COLOR_KEY, Color(1.0, 1.0, 1.0, 0.78)
 		),
-		"uncommon": ConfigSupport.color_setting(
-			self, RARITY_UNCOMMON_COLOR_KEY, Color(0.56, 0.9, 0.56, 0.92)
-		),
 		"rare": ConfigSupport.color_setting(
 			self, RARITY_RARE_COLOR_KEY, Color(0.45, 0.78, 1.0, 0.95)
-		),
-		"epic": ConfigSupport.color_setting(
-			self, RARITY_EPIC_COLOR_KEY, Color(0.88, 0.52, 1.0, 0.95)
 		),
 		"legendary": ConfigSupport.color_setting(
 			self, RARITY_LEGENDARY_COLOR_KEY, Color(1.0, 0.75, 0.28, 0.95)
@@ -1154,7 +1165,7 @@ func _rarity_color_map() -> Dictionary:
 func _rarity_color_signature() -> String:
 	var colors := _rarity_color_map()
 	var parts := PackedStringArray()
-	for rarity in ["common", "uncommon", "rare", "epic", "legendary"]:
+	for rarity in ["common", "rare", "legendary"]:
 		var color := colors.get(rarity, Color.WHITE)
 		if color is Color:
 			var rarity_color := color as Color

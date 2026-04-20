@@ -288,12 +288,8 @@ static func rarity_color(rarity: String, enabled: bool, custom_colors: Dictionar
 	match normalize_rarity_value(rarity).to_lower():
 		"legendary":
 			return rarity_color_override(custom_colors, "legendary", Color(1.0, 0.75, 0.28, 0.95))
-		"epic":
-			return rarity_color_override(custom_colors, "epic", Color(0.88, 0.52, 1.0, 0.95))
 		"rare":
 			return rarity_color_override(custom_colors, "rare", Color(0.45, 0.78, 1.0, 0.95))
-		"uncommon":
-			return rarity_color_override(custom_colors, "uncommon", Color(0.56, 0.9, 0.56, 0.92))
 		_:
 			return rarity_color_override(custom_colors, "common", Color(1.0, 1.0, 1.0, 0.78))
 
@@ -311,13 +307,11 @@ static func normalize_rarity_value(rarity: Variant) -> String:
 		"0":
 			return "Common"
 		"1":
-			return "Uncommon"
-		"2":
 			return "Rare"
-		"3":
-			return "Epic"
-		"4", "5":
+		"2":
 			return "Legendary"
+		"3":
+			return "Null"
 		_:
 			return rarity_text if not rarity_text.is_empty() else RARITY_COMMON
 
