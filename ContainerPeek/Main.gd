@@ -441,7 +441,7 @@ func _show_panel(data: Dictionary, delta: float) -> void:
 
 func _should_rerender_rows(total_item_count: int) -> bool:
 	var visible_count := _revealed_item_count(_current_target_id, total_item_count)
-	var loading := visible_count < total_item_count
+	var loading := _is_rummage_loading(_current_target_id, total_item_count)
 	if _current_target_id != _last_render_target_id:
 		return true
 	if int(_selection_by_id.get(_current_target_id, 0)) != _last_render_selection:
@@ -461,8 +461,9 @@ func _advance_rummage_progress(container_id: int, total_item_count: int, delta: 
 
 	var delay := _rummage_seconds_per_item()
 	var state := _rummage_progress_by_id.get(container_id, {})
-	if delay <= 0.0 or total_item_count <= 0:
-		state["elapsed"] = maxf(0.0, delay * float(total_item_count))
+	var progress_units := _rummage_progress_units(total_item_count)
+	if delay <= 0.0:
+		state["elapsed"] = 0.0 if total_item_count <= 0 else delay * float(progress_units)
 		state["completed"] = true
 		_rummage_progress_by_id[container_id] = state
 		return
@@ -470,7 +471,7 @@ func _advance_rummage_progress(container_id: int, total_item_count: int, delta: 
 	if bool(state.get("completed", false)):
 		return
 
-	var full_duration := delay * float(total_item_count)
+	var full_duration := delay * float(progress_units)
 	var elapsed := minf(full_duration, float(state.get("elapsed", 0.0)) + maxf(0.0, delta))
 	state["elapsed"] = elapsed
 	state["completed"] = elapsed >= full_duration
@@ -494,7 +495,14 @@ func _revealed_item_count(container_id: int, total_item_count: int) -> int:
 
 
 func _is_rummage_loading(container_id: int, total_item_count: int) -> bool:
-	return _revealed_item_count(container_id, total_item_count) < total_item_count
+	if _rummage_seconds_per_item() <= 0.0:
+		return false
+	var state := _rummage_progress_by_id.get(container_id, {})
+	return not bool(state.get("completed", false))
+
+
+func _rummage_progress_units(total_item_count: int) -> int:
+	return maxi(1, total_item_count)
 
 
 func _rummage_seconds_per_item() -> float:
@@ -506,13 +514,13 @@ func _loading_animation_phase() -> int:
 
 
 func _loading_text(revealed_count: int, total_item_count: int) -> String:
-	return "Rummaging%s  %d/%d" % [LOADING_DOTS[_loading_animation_phase()], revealed_count, total_item_count]
+	return "Rummaging%s" % LOADING_DOTS[_loading_animation_phase()]
 
 
 func _update_loading_indicator(revealed_count: int, total_item_count: int) -> void:
 	if _loading_label == null:
 		return
-	var loading := revealed_count < total_item_count
+	var loading := _is_rummage_loading(_current_target_id, total_item_count)
 	_loading_label.visible = loading
 	if loading:
 		_loading_label.text = _loading_text(revealed_count, total_item_count)
@@ -571,7 +579,7 @@ func _target_from_interactor(cam: Camera3D) -> Dictionary:
 	if not _hud_allows_container(container_node):
 		return {}
 
-	return _build_target_data(container_node, distance)
+	return _build_target_data(container_node)
 
 
 func _hud_allows_container(container_node: Node3D) -> bool:
@@ -607,10 +615,10 @@ func _normalize_prompt_text(text: String) -> String:
 	return text.strip_edges().to_lower()
 
 
-func _build_target_data(node: Node3D, distance: float) -> Dictionary:
+func _build_target_data(node: Node3D) -> Dictionary:
 	return {
 		"id": node.get_instance_id(),
-		"title": "%s  %.1fm" % [_debug_name(node), distance],
+		"title": _debug_name(node),
 	}
 
 
@@ -654,6 +662,8 @@ func _render_item_rows(node: Node, summaries: Dictionary) -> void:
 
 	if summaries.is_empty():
 		_visible_item_names.clear()
+		if _is_rummage_loading(node.get_instance_id(), 0):
+			return
 		_items_box.add_child(_make_row("Empty", false, false))
 		return
 
