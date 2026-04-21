@@ -21,6 +21,8 @@ const XP_SKILLS_COMPAT_KEY := "xp_skills_compat"
 const RARITY_COMMON_COLOR_KEY := "rarity_common_color"
 const RARITY_RARE_COLOR_KEY := "rarity_rare_color"
 const RARITY_LEGENDARY_COLOR_KEY := "rarity_legendary_color"
+const SORT_MODE_SECTION := "State"
+const SORT_MODE_KEY := "sort_mode"
 
 var _config := ConfigFile.new()
 var _mcm_helpers: Resource
@@ -308,6 +310,7 @@ func _build_default_config() -> ConfigFile:
 			}
 		)
 	)
+	config.set_value(SORT_MODE_SECTION, SORT_MODE_KEY, 0)
 	return config
 
 
