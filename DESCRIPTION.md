@@ -47,3 +47,12 @@ If you use `Mod Configuration Menu`, you can:
 Source code:
 
 https://github.com/MaxandreOgeret/Road-to-Vostok-Container-Peek
+
+## Audio Sources
+
+Custom rummaging audio sources:
+
+- https://pixabay.com/sound-effects/film-special-effects-jackethoodie-zipper-419038/
+- https://pixabay.com/sound-effects/film-special-effects-zipper-sound-effect-336780/
+- https://pixabay.com/sound-effects/film-special-effects-zipper-95036/
+- https://pixabay.com/sound-effects/film-special-effects-woven-nylon-bag-rustling-and-unzipping-62127/

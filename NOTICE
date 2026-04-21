@@ -1,0 +1,28 @@
+Licensing Notice
+================
+
+Unless stated otherwise, the source code and original project files in this repository
+are provided under the GNU General Public License v3.0. See `LICENSE`.
+
+Exception for bundled audio assets
+----------------------------------
+
+The MP3 files in `ContainerPeek/audio/` are NOT licensed under the GPL.
+
+Those audio files are third-party assets sourced from Pixabay and are distributed
+separately from the GPL-covered code. They remain subject to their own original
+license terms and source attribution.
+
+Affected files:
+
+- `ContainerPeek/audio/container_peek_rummage_corpse.mp3`
+- `ContainerPeek/audio/container_peek_zipper_0.mp3`
+- `ContainerPeek/audio/container_peek_zipper_1.mp3`
+- `ContainerPeek/audio/container_peek_zipper_2.mp3`
+
+Audio source links:
+
+- https://pixabay.com/sound-effects/film-special-effects-jackethoodie-zipper-419038/
+- https://pixabay.com/sound-effects/film-special-effects-zipper-sound-effect-336780/
+- https://pixabay.com/sound-effects/film-special-effects-zipper-95036/
+- https://pixabay.com/sound-effects/film-special-effects-woven-nylon-bag-rustling-and-unzipping-62127/

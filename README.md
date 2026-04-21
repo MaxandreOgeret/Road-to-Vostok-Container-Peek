@@ -18,7 +18,7 @@ The mod follows the game's own interaction logic instead of running a separate c
 
 The loot window shows item names, total displayed weight, and condition in a compact table with a fixed header and a real scrollbar. Rarity colors can be enabled for item names, and the selected row keeps its rarity color instead of switching to a neutral highlight color.
 
-The mod also supports an optional rummaging system for first-time inspection. When rummaging is enabled, grouped item rows are revealed over time with a spinner, a single skeleton placeholder row, and optional audio based on the game's `Craft_Generic` sound. By default, rummaging is skipped in shelters and the full contents are shown immediately there, but that behavior can be changed in Mod Configuration Menu.
+The mod also supports an optional rummaging system for first-time inspection. When rummaging is enabled, grouped item rows are revealed over time with a spinner, a single skeleton placeholder row, and optional audio. Corpse rummaging uses dedicated bundled sounds, while other containers keep the existing game-based audio behavior. By default, rummaging is skipped in shelters and the full contents are shown immediately there, but that behavior can be changed in Mod Configuration Menu.
 
 Transfer behavior is designed to stay close to the base game. You can transfer the selected entry or take all visible contents, and failed transfers use the same error feedback the game already uses when inventory space runs out.
 
@@ -73,6 +73,19 @@ Copy `ContainerPeek.zip` into the game's mod folder at `~/.steam/debian-installa
 
 The mod requires `Road to Vostok` and the community mod loader format used by the game. `Mod Configuration Menu` is optional, but it is required if you want to change bindings or adjust the rummage, shelter rummaging, audio, opacity, and rarity color settings in game.
 
+## Licensing Note
+
+The repository code is GPL-3.0, but the bundled MP3 files under `ContainerPeek/audio/` are explicitly excluded from that GPL grant. See [NOTICE](/home/mackou/projects/vostok_lootmenu/NOTICE:1) for the asset carve-out and source links.
+
 ## References
 
 The loader format and installation details are documented at <https://github.com/ametrocavich/vostok-mod-loader>. The container script reference that helped shape the live-field handling is available at <https://modworkshop.net/mod/55135>.
+
+## Audio Sources
+
+The corpse rummaging audio was sourced from Pixabay:
+
+- <https://pixabay.com/sound-effects/film-special-effects-jackethoodie-zipper-419038/>
+- <https://pixabay.com/sound-effects/film-special-effects-zipper-sound-effect-336780/>
+- <https://pixabay.com/sound-effects/film-special-effects-zipper-95036/>
+- <https://pixabay.com/sound-effects/film-special-effects-woven-nylon-bag-rustling-and-unzipping-62127/>
