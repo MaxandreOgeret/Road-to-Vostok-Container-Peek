@@ -98,17 +98,23 @@ static func slot_total_weight(_container_node: Node, slot: Variant) -> float:
 	if item == null:
 		return 0.0
 
-	var weight := numeric_property(item, [
-		&"weight",
-	])
+	var weight := numeric_property(
+		item,
+		[
+			&"weight",
+		]
+	)
 	var item_type := str(property_value(item, &"type")).strip_edges()
 	var item_subtype := str(property_value(item, &"subtype")).strip_edges()
 	var loaded_amount := slot_raw_amount(slot)
 
 	if item_type == "Ammo":
-		var default_amount := numeric_property(item, [
-			&"defaultAmount",
-		])
+		var default_amount := numeric_property(
+			item,
+			[
+				&"defaultAmount",
+			]
+		)
 		if default_amount > 0.0:
 			weight *= loaded_amount / default_amount
 
@@ -116,33 +122,54 @@ static func slot_total_weight(_container_node: Node, slot: Variant) -> float:
 		var compatible := property_value(item, &"compatible")
 		if compatible is Array and not (compatible as Array).is_empty():
 			var ammo_data: Variant = (compatible as Array)[0]
-			var ammo_default_amount := numeric_property(ammo_data, [
-				&"defaultAmount",
-			])
+			var ammo_default_amount := numeric_property(
+				ammo_data,
+				[
+					&"defaultAmount",
+				]
+			)
 			if ammo_default_amount > 0.0:
-				var weight_per_round := numeric_property(ammo_data, [
-					&"weight",
-				]) / ammo_default_amount
+				var weight_per_round := (
+					numeric_property(
+						ammo_data,
+						[
+							&"weight",
+						]
+					)
+					/ ammo_default_amount
+				)
 				weight += weight_per_round * loaded_amount
 
 	if item_type == "Weapon" and (loaded_amount != 0.0 or slot_chambered(slot)):
 		var ammo_data := property_value(item, &"ammo")
-		var ammo_default_amount := numeric_property(ammo_data, [
-			&"defaultAmount",
-		])
+		var ammo_default_amount := numeric_property(
+			ammo_data,
+			[
+				&"defaultAmount",
+			]
+		)
 		if ammo_default_amount > 0.0:
-			var weight_per_round := numeric_property(ammo_data, [
-				&"weight",
-			]) / ammo_default_amount
+			var weight_per_round := (
+				numeric_property(
+					ammo_data,
+					[
+						&"weight",
+					]
+				)
+				/ ammo_default_amount
+			)
 			var total_ammo_weight := weight_per_round * loaded_amount
 			if slot_chambered(slot):
 				total_ammo_weight += weight_per_round
 			weight += total_ammo_weight
 
 	for nested in slot_nested(slot):
-		weight += numeric_property(nested, [
-			&"weight",
-		])
+		weight += numeric_property(
+			nested,
+			[
+				&"weight",
+			]
+		)
 
 	return maxf(0.0, snappedf(weight, 0.01))
 
@@ -375,3 +402,62 @@ static func remove_slot_from_container(container_node: Node, slot: Variant) -> v
 
 	source.remove_at(index)
 	container_node.set(property_name, source)
+
+
+static func append_slot_to_container(container_node: Node, slot: Variant) -> void:
+	var property_name := "storage" if bool(container_node.get("storaged")) else "loot"
+	var source := slot_source(container_node)
+	source.append(clone_slot(slot))
+	container_node.set(property_name, source)
+
+
+static func try_stack_slot_into_container(container_node: Node, slot: Variant) -> bool:
+	if not slot_is_stackable(slot):
+		return false
+
+	var item_file := slot_item_file(slot)
+	if item_file.is_empty():
+		return false
+
+	var source := slot_source(container_node)
+	for existing in source:
+		if not slot_is_stackable(existing):
+			continue
+		if slot_item_file(existing) != item_file:
+			continue
+		set_slot_amount(existing, slot_amount(existing) + slot_amount(slot))
+		container_node.set("storage" if bool(container_node.get("storaged")) else "loot", source)
+		return true
+
+	return false
+
+
+static func clone_slot(slot: Variant) -> Variant:
+	if slot == null:
+		return null
+	if slot is Object and (slot as Object).has_method("duplicate"):
+		return (slot as Object).call("duplicate", true)
+	if slot is Dictionary:
+		return (slot as Dictionary).duplicate(true)
+	return slot
+
+
+static func slot_is_stackable(slot: Variant) -> bool:
+	var item := slot_item(slot)
+	var stackable := property_value(item, &"stackable")
+	return stackable is bool and stackable
+
+
+static func slot_item_file(slot: Variant) -> String:
+	var item := slot_item(slot)
+	if item == null:
+		return ""
+	return str(property_value(item, &"file")).strip_edges()
+
+
+static func set_slot_amount(slot: Variant, amount: int) -> void:
+	var clamped_amount := maxi(0, amount)
+	if slot is Object:
+		(slot as Object).set("amount", clamped_amount)
+	elif slot is Dictionary:
+		(slot as Dictionary)["amount"] = clamped_amount

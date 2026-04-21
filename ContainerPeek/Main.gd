@@ -2,6 +2,9 @@ extends Node
 
 const ConfigSupport = preload("res://ContainerPeek/ConfigSupport.gd")
 const ItemSupport = preload("res://ContainerPeek/ItemSupport.gd")
+const PanelSupport = preload("res://ContainerPeek/PanelSupport.gd")
+const TargetSupport = preload("res://ContainerPeek/TargetSupport.gd")
+const XPSkillsCompat = preload("res://ContainerPeek/Compat/XPSkillsCompat.gd")
 const GAME_DATA_RES := "res://Resources/GameData.tres"
 const AUDIO_INSTANCE_2D_SCENE := preload("res://Resources/AudioInstance2D.tscn")
 const RUMMAGE_AUDIO_EVENT := preload("res://Audio/Crafting/Craft_Generic.tres")
@@ -11,17 +14,22 @@ const PANEL_OFFSET := Vector2(18.0, 18.0)
 const SCREEN_PAD := 12.0
 const MAX_VISIBLE_ITEMS := 8
 const ITEM_ROW_HEIGHT := 20
+const ITEM_LIST_SEPARATION := 2
 const ROW_SIDE_PAD := 2
 const ROW_PREFIX_WIDTH := 16.0
 const ITEM_COL_MIN_WIDTH := 120.0
 const COL_SEPARATION := 8
 const WEIGHT_COL_WIDTH := 56.0
 const CONDITION_COL_WIDTH := 62.0
+const ROW_WINDOW_OVERSCAN := 2
 const TRANSFER_ACTION := &"container_peek_transfer"
 const TAKE_ALL_ACTION := &"container_peek_take_all"
+const SORT_ACTION := &"container_peek_sort"
 const RUMMAGE_TIME_KEY := "rummage_seconds_per_item"
 const RUMMAGE_AUDIO_KEY := "rummage_audio"
+const RUMMAGE_IN_SHELTER_KEY := "rummage_in_shelter"
 const PANEL_OPACITY_KEY := "panel_opacity"
+const XP_SKILLS_COMPAT_KEY := "xp_skills_compat"
 const RARITY_COMMON_COLOR_KEY := "rarity_common_color"
 const RARITY_RARE_COLOR_KEY := "rarity_rare_color"
 const RARITY_LEGENDARY_COLOR_KEY := "rarity_legendary_color"
@@ -30,11 +38,21 @@ const LOADING_SPINNER_FRAMES := ["|", "/", "-", "\\"]
 const PLACEHOLDER_BAR_HEIGHT := 8.0
 const RUMMAGE_AUDIO_MIN_OFFSET := 1.0
 const RUMMAGE_AUDIO_END_PAD := 0.05
+const SORT_MODE_NAME := 0
+const SORT_MODE_RARITY := 1
+const SORT_MODE_WEIGHT := 2
+const SORT_MODE_SECTION := "State"
+const SORT_MODE_KEY := "sort_mode"
+const SCROLL_REQUEST_NONE := 0
+const SCROLL_REQUEST_TOP := 1
+const DEBUG_SCROLL_LOG := false
+const DEBUG_SCROLL_LOG_PATH := "user://containerpeek_scroll.log"
 
 var _tracked: Dictionary = {}
 var _game_data: Resource
 var _selection_by_id: Dictionary = {}
 var _rummage_progress_by_id: Dictionary = {}
+var _xp_skills_notified_by_id: Dictionary = {}
 var _placeholder_blocks: Array = []
 var _current_target_id := -1
 var _visible_item_names: Array = []
@@ -43,13 +61,34 @@ var _rendered_placeholder_row: Control
 var _last_focus_node: Node3D
 var _last_render_target_id := -1
 var _last_render_selection := -1
-var _last_render_visible_count := -1
-var _last_render_total_count := -1
-var _last_render_summary_signature := ""
-var _last_render_loading := false
-var _last_render_rarity_colors := true
-var _last_render_rarity_signature := ""
+var _last_render_state: Dictionary = {}
+var _cached_summary_target_id := -1
+var _cached_summary_signature := ""
+var _cached_summaries: Dictionary = {}
+var _cached_sorted_target_id := -1
+var _cached_sorted_sort_mode := -1
+var _cached_sorted_signature := ""
+var _cached_sorted_names: Array = []
+var _cached_item_col_width := -1.0
 var _bootstrapped := false
+var _sort_mode := SORT_MODE_NAME
+var _pending_scroll_request := SCROLL_REQUEST_NONE
+var _last_selection_step := 0
+var _rendered_row_start := -1
+var _rendered_row_end := -1
+var _last_panel_opacity := -1.0
+var _last_hint_text := ""
+var _last_title_text := ""
+var _last_header_gutter := -1
+var _layout_dirty := true
+var _debug_last_target_scroll := -1
+var _debug_last_scroll_control_name := ""
+var _debug_last_scroll_control_index := -1
+var _debug_last_scroll_control_role := ""
+var _debug_last_top_spacer_height := 0.0
+var _debug_last_bottom_spacer_height := 0.0
+var _debug_last_render_window_size := 0
+var _debug_last_visible_window_size := 0
 
 var _canvas: CanvasLayer
 var _panel: PanelContainer
@@ -72,12 +111,20 @@ var _item_font_size := 13
 var _item_text_width_cache: Dictionary = {}
 var _interactor: RayCast3D
 var _hud: Node
+var _hud_text_nodes: Array = []
 var _rummage_audio: AudioStreamPlayer
+var _selected_row_style: StyleBox
+var _plain_row_style: StyleBox
 var _scroll_request_id := 0
 
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	_sort_mode = clampi(
+		ConfigSupport.int_setting(self, SORT_MODE_SECTION, SORT_MODE_KEY, SORT_MODE_NAME),
+		SORT_MODE_NAME,
+		SORT_MODE_WEIGHT
+	)
 
 
 func _process(delta: float) -> void:
@@ -124,6 +171,11 @@ func _unhandled_input(event: InputEvent) -> void:
 			get_viewport().set_input_as_handled()
 		return
 
+	if _is_action_event_pressed(event, SORT_ACTION):
+		_cycle_sort_mode()
+		get_viewport().set_input_as_handled()
+		return
+
 	if not (event is InputEventMouseButton):
 		return
 
@@ -149,6 +201,7 @@ func _unhandled_input(event: InputEvent) -> void:
 
 	var current := int(_selection_by_id.get(_current_target_id, 0))
 	_selection_by_id[_current_target_id] = clampi(current + direction, 0, item_count - 1)
+	_last_selection_step = direction
 	get_viewport().set_input_as_handled()
 
 
@@ -174,7 +227,7 @@ func _build_ui(host: Node) -> void:
 	_panel.custom_minimum_size = Vector2(320.0, 0.0)
 	_canvas.add_child(_panel)
 
-	var panel_style: StyleBox = _make_panel_style()
+	var panel_style: StyleBox = PanelSupport.make_panel_style(_ui_tile, _panel_opacity())
 	_panel.add_theme_stylebox_override("panel", panel_style)
 
 	var margin := MarginContainer.new()
@@ -207,7 +260,16 @@ func _build_ui(host: Node) -> void:
 	_header_margin.add_theme_constant_override("margin_right", ROW_SIDE_PAD)
 	root.add_child(_header_margin)
 
-	_header_margin.add_child(_make_header_row())
+	var header_data := PanelSupport.make_header_row(
+		_ui_theme,
+		ROW_PREFIX_WIDTH,
+		ITEM_COL_MIN_WIDTH,
+		COL_SEPARATION,
+		WEIGHT_COL_WIDTH,
+		CONDITION_COL_WIDTH
+	)
+	_header_item_label = header_data.get("item_label", null) as Label
+	_header_margin.add_child(header_data.get("row"))
 
 	_item_scroll = ScrollContainer.new()
 	_item_scroll.theme = _ui_theme
@@ -219,7 +281,7 @@ func _build_ui(host: Node) -> void:
 
 	_items_box = VBoxContainer.new()
 	_items_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_items_box.add_theme_constant_override("separation", 2)
+	_items_box.add_theme_constant_override("separation", ITEM_LIST_SEPARATION)
 	_items_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_item_scroll.add_child(_items_box)
 
@@ -245,17 +307,17 @@ func _build_ui(host: Node) -> void:
 	_loading_spinner_label.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0, 0.72))
 	_loading_row.add_child(_loading_spinner_label)
 
-	_divider_bar = _make_divider()
+	_divider_bar = PanelSupport.make_divider()
 	root.add_child(_divider_bar)
-	_apply_panel_opacity()
 
 	_hint_label = Label.new()
 	_hint_label.theme = _ui_theme
-	_hint_label.text = _hint_text()
 	_hint_label.add_theme_font_size_override("font_size", 12)
 	_hint_label.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0, 0.5))
 	_hint_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	root.add_child(_hint_label)
+	_refresh_panel_style_if_needed()
+	_refresh_hint_if_needed()
 
 
 func _load_ui_assets() -> void:
@@ -267,50 +329,14 @@ func _load_ui_assets() -> void:
 
 func _hint_text() -> String:
 	return (
-		"Wheel: Scroll   %s: Transfer   %s: Take All"
+		"Wheel: Scroll   %s: Transfer   %s: Take All   %s: Sort (%s)"
 		% [
 			ConfigSupport.binding_label(self, TRANSFER_ACTION),
 			ConfigSupport.binding_label(self, TAKE_ALL_ACTION),
+			ConfigSupport.binding_label(self, SORT_ACTION),
+			_sort_mode_label(),
 		]
 	)
-
-
-func _make_divider() -> ColorRect:
-	var divider := ColorRect.new()
-	divider.custom_minimum_size = Vector2(0.0, 1.0)
-	return divider
-
-
-func _make_panel_style() -> StyleBox:
-	var panel_opacity := _panel_opacity()
-	if _ui_tile != null:
-		var style := StyleBoxTexture.new()
-		style.texture = _ui_tile
-		style.texture_margin_left = 1.0
-		style.texture_margin_top = 1.0
-		style.texture_margin_right = 1.0
-		style.texture_margin_bottom = 1.0
-		style.modulate_color = Color(1.0, 1.0, 1.0, 0.86 * panel_opacity)
-		return style
-
-	var fallback := StyleBoxFlat.new()
-	fallback.bg_color = Color(0.06, 0.06, 0.06, 0.92 * panel_opacity)
-	fallback.border_color = Color(1.0, 1.0, 1.0, 0.18 * panel_opacity)
-	fallback.border_width_left = 1
-	fallback.border_width_top = 1
-	fallback.border_width_right = 1
-	fallback.border_width_bottom = 1
-	return fallback
-
-
-func _apply_panel_opacity() -> void:
-	if _panel != null:
-		_panel.add_theme_stylebox_override("panel", _make_panel_style())
-	var panel_opacity := _panel_opacity()
-	if _header_bar != null:
-		_header_bar.color = Color(1.0, 1.0, 1.0, 0.05 * panel_opacity)
-	if _divider_bar != null:
-		_divider_bar.color = Color(0.58, 0.65, 0.69, 0.25 * panel_opacity)
 
 
 func _panel_opacity() -> float:
@@ -407,6 +433,7 @@ func _resolve_hud() -> Node:
 		var node := scene.get_node_or_null(path)
 		if node != null:
 			_hud = node
+			_hud_text_nodes.clear()
 			return _hud
 
 	return null
@@ -426,6 +453,7 @@ func _teardown_runtime() -> void:
 	_hide_panel()
 	_tracked.clear()
 	_rummage_progress_by_id.clear()
+	_xp_skills_notified_by_id.clear()
 	_placeholder_blocks.clear()
 	_last_focus_node = null
 	_bootstrapped = false
@@ -445,9 +473,17 @@ func _teardown_runtime() -> void:
 	_ui_host = null
 	_interactor = null
 	_hud = null
+	_hud_text_nodes.clear()
 	_rummage_audio = null
 	_item_font = null
 	_item_text_width_cache.clear()
+	_selected_row_style = null
+	_plain_row_style = null
+	_last_panel_opacity = -1.0
+	_last_hint_text = ""
+	_last_title_text = ""
+	_last_header_gutter = -1
+	_layout_dirty = true
 
 
 func _hide_panel() -> void:
@@ -456,16 +492,15 @@ func _hide_panel() -> void:
 	_rendered_item_rows.clear()
 	_rendered_placeholder_row = null
 	_placeholder_blocks.clear()
+	_pending_scroll_request = SCROLL_REQUEST_NONE
+	_rendered_row_start = -1
+	_rendered_row_end = -1
 	_stop_rummage_sound()
 	_last_focus_node = null
 	_last_render_target_id = -1
 	_last_render_selection = -1
-	_last_render_visible_count = -1
-	_last_render_total_count = -1
-	_last_render_summary_signature = ""
-	_last_render_loading = false
-	_last_render_rarity_colors = true
-	_last_render_rarity_signature = ""
+	_last_render_state.clear()
+	_invalidate_summary_cache()
 	if _panel == null:
 		return
 	_panel.visible = false
@@ -476,40 +511,97 @@ func _hide_panel() -> void:
 func _show_panel(data: Dictionary, delta: float) -> void:
 	if _panel == null or _title_label == null:
 		return
-	_apply_panel_opacity()
-	_current_target_id = int(data.get("id", -1))
+	_refresh_panel_style_if_needed()
+	var next_target_id := int(data.get("id", -1))
+	var target_changed := _current_target_id != next_target_id
+	_current_target_id = next_target_id
+	if target_changed:
+		_invalidate_summary_cache()
+		_reset_view_for_target_change(_current_target_id)
 	var focused := _tracked.get(_current_target_id, null)
 	_last_focus_node = focused as Node3D if focused is Node3D else null
-	_title_label.text = str(data.get("title", "Container"))
-	if _hint_label != null:
-		_hint_label.text = _hint_text()
+	_refresh_title(str(data.get("title", "Container")))
+	_refresh_hint_if_needed()
 
-	var selection_changed := int(_selection_by_id.get(_current_target_id, 0)) != _last_render_selection
+	var selection_changed := (
+		int(_selection_by_id.get(_current_target_id, 0)) != _last_render_selection
+	)
 	if _last_focus_node != null:
-		var summaries := ItemSupport.item_summaries(_last_focus_node)
-		var summary_signature := _summaries_signature(summaries)
+		var summaries := _current_summaries(_last_focus_node)
 		_advance_rummage_progress(_current_target_id, summaries.size(), delta)
-		var rerender_rows := _should_rerender_rows(summaries.size(), summary_signature)
+		_maybe_notify_xp_skills_open(_last_focus_node)
+		var render_state := _build_render_state(summaries, _cached_summary_signature)
+		var rerender_rows := _should_rerender_rows(render_state)
 		if rerender_rows:
 			_render_item_rows(_last_focus_node, summaries)
 			_last_render_target_id = _current_target_id
-			_last_render_visible_count = _visible_item_names.size()
-			_last_render_total_count = summaries.size()
-			_last_render_summary_signature = summary_signature
-			_last_render_loading = _is_rummage_loading(_current_target_id)
-			_last_render_rarity_colors = _rarity_colors_enabled()
-			_last_render_rarity_signature = _rarity_color_signature()
+			_remember_render_state(render_state)
 		elif selection_changed:
-			_refresh_rendered_selection(_current_target_id)
+			if _selection_requires_row_window_rerender(_current_target_id):
+				_render_item_rows(_last_focus_node, summaries)
+			else:
+				_refresh_rendered_selection(_current_target_id)
 		_last_render_selection = int(_selection_by_id.get(_current_target_id, 0))
 		_update_loading_indicator(summaries.size())
 	else:
 		_update_loading_indicator(0)
 
 	_panel.visible = true
-	_panel.size = _panel.get_combined_minimum_size()
-	_sync_header_alignment()
+	_refresh_layout_if_needed()
+	_position_panel()
 
+
+func _refresh_panel_style_if_needed() -> void:
+	var panel_opacity := _panel_opacity()
+	if is_equal_approx(panel_opacity, _last_panel_opacity):
+		return
+
+	_last_panel_opacity = panel_opacity
+	if _panel != null:
+		_panel.add_theme_stylebox_override(
+			"panel", PanelSupport.make_panel_style(_ui_tile, panel_opacity)
+		)
+	if _header_bar != null:
+		_header_bar.color = Color(1.0, 1.0, 1.0, 0.05 * panel_opacity)
+	if _divider_bar != null:
+		_divider_bar.color = Color(0.58, 0.65, 0.69, 0.25 * panel_opacity)
+	_layout_dirty = true
+
+
+func _refresh_title(title: String) -> void:
+	if _title_label == null or _last_title_text == title:
+		return
+	_last_title_text = title
+	_title_label.text = title
+	_layout_dirty = true
+
+
+func _refresh_hint_if_needed() -> void:
+	if _hint_label == null:
+		return
+
+	var hint_text := _hint_text()
+	if _last_hint_text == hint_text:
+		return
+
+	_last_hint_text = hint_text
+	_hint_label.text = hint_text
+	_layout_dirty = true
+
+
+func _refresh_layout_if_needed() -> void:
+	if _panel == null:
+		return
+	if _layout_dirty:
+		_panel.reset_size()
+		_panel.size = _panel.get_combined_minimum_size()
+		_sync_header_alignment()
+		_layout_dirty = false
+
+
+func _position_panel() -> void:
+	if _panel == null:
+		return
 	var screen := get_viewport().get_visible_rect().size
 	var pos := _cursor_screen_position() + PANEL_OFFSET
 	pos.x = clampf(pos.x, SCREEN_PAD, screen.x - _panel.size.x - SCREEN_PAD)
@@ -517,22 +609,130 @@ func _show_panel(data: Dictionary, delta: float) -> void:
 	_panel.position = pos
 
 
-func _should_rerender_rows(total_item_count: int, summary_signature: String) -> bool:
-	var visible_count := _revealed_item_count(_current_target_id, total_item_count)
-	var loading := _is_rummage_loading(_current_target_id)
+func _selection_requires_row_window_rerender(container_id: int) -> bool:
+	if _rendered_item_rows.is_empty():
+		return true
+
+	var selected_index := int(_selection_by_id.get(container_id, 0))
+	return selected_index < _rendered_row_start or selected_index >= _rendered_row_end
+
+
+func _row_window_range(total_rows: int, selected_index: int) -> Dictionary:
+	if total_rows <= 0:
+		return {"start": 0, "end": 0, "visible_window_size": 0, "render_window_size": 0}
+
+	var visible_window_size := mini(total_rows, MAX_VISIBLE_ITEMS)
+	var render_window_size := mini(total_rows, MAX_VISIBLE_ITEMS + ROW_WINDOW_OVERSCAN * 2)
+	if _pending_scroll_request == SCROLL_REQUEST_TOP or total_rows <= render_window_size:
+		return {
+			"start": 0,
+			"end": render_window_size,
+			"visible_window_size": visible_window_size,
+			"render_window_size": render_window_size,
+		}
+
+	var max_visible_start := maxi(0, total_rows - visible_window_size)
+	var visible_start := 0
+	if _last_selection_step > 0:
+		# When moving down, keep the selected row pinned to the bottom of the visible slice.
+		visible_start = clampi(selected_index - (visible_window_size - 1), 0, max_visible_start)
+	elif _last_selection_step < 0:
+		# When moving up, keep the selected row pinned to the top of the visible slice.
+		visible_start = clampi(selected_index, 0, max_visible_start)
+	else:
+		visible_start = clampi(
+			selected_index - int(floor(float(visible_window_size - 1) * 0.5)), 0, max_visible_start
+		)
+
+	var render_start := clampi(
+		visible_start - ROW_WINDOW_OVERSCAN, 0, total_rows - render_window_size
+	)
+	return {
+		"start": render_start,
+		"end": render_start + render_window_size,
+		"visible_window_size": visible_window_size,
+		"render_window_size": render_window_size,
+	}
+
+
+func _logical_row_count(visible_count: int, has_placeholder: bool) -> int:
+	return visible_count + (1 if has_placeholder else 0)
+
+
+func _render_placeholder_for_window(
+	visible_count: int, has_placeholder: bool, window_end: int
+) -> bool:
+	return has_placeholder and window_end >= visible_count
+
+
+func _row_top_spacer_height(window_start: int) -> float:
+	return _logical_block_height(window_start)
+
+
+func _row_bottom_spacer_height(
+	visible_count: int, has_placeholder: bool, window_end: int, render_placeholder: bool
+) -> float:
+	var hidden_row_count := _logical_row_count(visible_count, has_placeholder) - window_end
+	if render_placeholder:
+		hidden_row_count -= 1
+	return _logical_block_height(maxi(0, hidden_row_count))
+
+
+func _logical_block_height(row_count: int) -> float:
+	if row_count <= 0:
+		return 0.0
+	# Spacer rows need to account for the hidden row gaps too, otherwise long lists drift.
+	return float(row_count * ITEM_ROW_HEIGHT + maxi(0, row_count - 1) * ITEM_LIST_SEPARATION)
+
+
+func _queue_clear_children(node: Node) -> void:
+	for child in node.get_children():
+		node.remove_child(child)
+		child.queue_free()
+
+
+func _build_render_state(summaries: Dictionary, summary_signature: String) -> Dictionary:
+	return {
+		"visible_count": _revealed_item_count(_current_target_id, summaries.size()),
+		"total_count": summaries.size(),
+		"summary_signature": summary_signature,
+		"loading": _is_rummage_loading(_current_target_id),
+		"rarity_colors": _rarity_colors_enabled(),
+		"rarity_signature": _rarity_color_signature(),
+		"sort_mode": _sort_mode,
+	}
+
+
+func _remember_render_state(render_state: Dictionary) -> void:
+	_last_render_state = render_state.duplicate(true)
+
+
+func _current_summaries(node: Node) -> Dictionary:
+	if _cached_summary_target_id != _current_target_id:
+		_cached_summaries = ItemSupport.item_summaries(node)
+		_cached_summary_target_id = _current_target_id
+		_cached_summary_signature = _summaries_signature(_cached_summaries)
+	return _cached_summaries
+
+
+func _invalidate_summary_cache() -> void:
+	_cached_summary_target_id = -1
+	_cached_summary_signature = ""
+	_cached_summaries.clear()
+	_cached_sorted_target_id = -1
+	_cached_sorted_sort_mode = -1
+	_cached_sorted_signature = ""
+	_cached_sorted_names.clear()
+	_cached_item_col_width = -1.0
+
+
+func _should_rerender_rows(render_state: Dictionary) -> bool:
 	if _current_target_id != _last_render_target_id:
 		return true
-	if visible_count != _last_render_visible_count:
-		return true
-	if total_item_count != _last_render_total_count:
-		return true
-	if summary_signature != _last_render_summary_signature:
-		return true
-	if loading != _last_render_loading:
-		return true
-	if _rarity_colors_enabled() != _last_render_rarity_colors:
-		return true
-	return _rarity_color_signature() != _last_render_rarity_signature
+	for key in render_state.keys():
+		if render_state.get(key) != _last_render_state.get(key):
+			return true
+	return false
 
 
 func _advance_rummage_progress(container_id: int, total_item_count: int, delta: float) -> void:
@@ -541,13 +741,13 @@ func _advance_rummage_progress(container_id: int, total_item_count: int, delta: 
 		return
 
 	var delay := _rummage_seconds_per_item()
-	var state := _rummage_progress_by_id.get(container_id, {})
+	var state := _rummage_state(container_id)
 	var progress_units := _rummage_progress_units(total_item_count)
 	if delay <= 0.0:
 		_stop_rummage_sound()
 		state["elapsed"] = 0.0 if total_item_count <= 0 else delay * float(progress_units)
 		state["completed"] = true
-		_rummage_progress_by_id[container_id] = state
+		_store_rummage_state(container_id, state)
 		return
 
 	if bool(state.get("completed", false)):
@@ -563,6 +763,14 @@ func _advance_rummage_progress(container_id: int, total_item_count: int, delta: 
 	state["completed"] = elapsed >= full_duration
 	if bool(state.get("completed", false)):
 		_stop_rummage_sound()
+	_store_rummage_state(container_id, state)
+
+
+func _rummage_state(container_id: int) -> Dictionary:
+	return _rummage_progress_by_id.get(container_id, {})
+
+
+func _store_rummage_state(container_id: int, state: Dictionary) -> void:
 	_rummage_progress_by_id[container_id] = state
 
 
@@ -574,7 +782,7 @@ func _revealed_item_count(container_id: int, total_item_count: int) -> int:
 	if delay <= 0.0:
 		return total_item_count
 
-	var state := _rummage_progress_by_id.get(container_id, {})
+	var state := _rummage_state(container_id)
 	if bool(state.get("completed", false)):
 		return total_item_count
 
@@ -585,7 +793,7 @@ func _revealed_item_count(container_id: int, total_item_count: int) -> int:
 func _is_rummage_loading(container_id: int) -> bool:
 	if _rummage_seconds_per_item() <= 0.0:
 		return false
-	var state := _rummage_progress_by_id.get(container_id, {})
+	var state := _rummage_state(container_id)
 	return not bool(state.get("completed", false))
 
 
@@ -608,7 +816,11 @@ func _shelter_bypasses_rummaging() -> bool:
 		return false
 
 	var shelter: Variant = _game_data.get("shelter")
-	return shelter != null and bool(shelter)
+	return (
+		shelter != null
+		and bool(shelter)
+		and not ConfigSupport.bool_setting(self, RUMMAGE_IN_SHELTER_KEY, false)
+	)
 
 
 func _maybe_play_rummage_sound(state: Dictionary, progress_units: int) -> void:
@@ -667,6 +879,23 @@ func _stop_rummage_sound() -> void:
 	_rummage_audio = null
 
 
+func _maybe_notify_xp_skills_open(container_node: Node3D) -> void:
+	if not _xp_skills_compat_enabled():
+		return
+	if container_node == null or not is_instance_valid(container_node):
+		return
+
+	var container_id := container_node.get_instance_id()
+	if bool(_xp_skills_notified_by_id.get(container_id, false)):
+		return
+	if _is_rummage_loading(container_id):
+		return
+
+	_xp_skills_notified_by_id[container_id] = true
+	if XPSkillsCompat.notify_container_open(container_node, _resolve_ui_root()):
+		_invalidate_summary_cache()
+
+
 func _seek_rummage_sound_random_offset() -> void:
 	if _rummage_audio == null or not is_instance_valid(_rummage_audio):
 		return
@@ -682,7 +911,10 @@ func _seek_rummage_sound_random_offset() -> void:
 
 
 func _loading_animation_phase() -> int:
-	return int(floor(float(Time.get_ticks_msec()) / (LOADING_FRAME_SECONDS * 1000.0))) % LOADING_SPINNER_FRAMES.size()
+	return (
+		int(floor(float(Time.get_ticks_msec()) / (LOADING_FRAME_SECONDS * 1000.0)))
+		% LOADING_SPINNER_FRAMES.size()
+	)
 
 
 func _loading_spinner_text() -> String:
@@ -710,13 +942,16 @@ func _summaries_signature(summaries: Dictionary) -> String:
 	var signature := ""
 	for item_name in names:
 		var summary := summaries[item_name] as Dictionary
-		signature += "%s|%d|%.3f|%s|%s\n" % [
-			str(item_name),
-			int(summary.get("amount", 0)),
-			float(summary.get("weight", 0.0)),
-			str(summary.get("condition", "")),
-			str(summary.get("rarity", ItemSupport.RARITY_COMMON)),
-		]
+		signature += (
+			"%s|%d|%.3f|%s|%s\n"
+			% [
+				str(item_name),
+				int(summary.get("amount", 0)),
+				float(summary.get("weight", 0.0)),
+				str(summary.get("condition", "")),
+				str(summary.get("rarity", ItemSupport.RARITY_COMMON)),
+			]
+		)
 	return signature
 
 
@@ -730,30 +965,6 @@ func _sync_placeholder_animation() -> void:
 func _placeholder_tint() -> Color:
 	var pulse := 0.22 + 0.08 * (0.5 + 0.5 * sin(float(Time.get_ticks_msec()) * 0.008))
 	return Color(1.0, 1.0, 1.0, pulse)
-
-
-func _looks_like_container(node: Node) -> bool:
-	var raw_name: Variant = node.get("containerName")
-	var has_name := raw_name is String and not (raw_name as String).strip_edges().is_empty()
-	var has_loot := node.get("loot") is Array
-	var has_storage := node.get("storage") is Array
-	var has_locked := node.get("locked") != null
-	var has_storaged := node.get("storaged") != null
-
-	if (has_loot or has_storage) and (has_name or has_locked or has_storaged):
-		return true
-
-	var script: Variant = node.get_script()
-	if script is Script:
-		var path := (script as Script).resource_path.to_lower()
-		if path.contains("container") or path.contains("corpse"):
-			return has_loot or has_storage or has_name
-
-	var scene_path := node.scene_file_path.to_lower()
-	if scene_path.contains("container") or scene_path.contains("corpse"):
-		return has_loot or has_storage or has_name
-
-	return false
 
 
 func _register_candidate(node: Node3D) -> void:
@@ -793,32 +1004,35 @@ func _hud_allows_container(container_node: Node3D) -> bool:
 	if hud == null:
 		return true
 
-	var target_name := _normalize_prompt_text(_debug_name(container_node))
+	var target_name := TargetSupport.normalize_prompt_text(_debug_name(container_node))
 	if target_name.is_empty():
 		return true
 
-	return _hud_text_matches(hud, target_name)
+	_ensure_hud_text_nodes(hud)
+	return _hud_text_matches(target_name)
 
 
-func _hud_text_matches(node: Node, target_name: String) -> bool:
-	if node is CanvasItem and not (node as CanvasItem).is_visible_in_tree():
-		return false
+func _ensure_hud_text_nodes(hud: Node) -> void:
+	if not _hud_text_nodes.is_empty():
+		return
+	TargetSupport.collect_hud_text_nodes(hud, _hud_text_nodes)
 
-	var text_value: Variant = node.get("text")
-	if text_value is String:
-		var text := _normalize_prompt_text(text_value as String)
-		if not text.is_empty() and text.contains(target_name):
-			return true
 
-	for child in node.get_children():
-		if _hud_text_matches(child, target_name):
-			return true
-
+func _hud_text_matches(target_name: String) -> bool:
+	for candidate_variant in _hud_text_nodes:
+		if not (candidate_variant is Node):
+			continue
+		var candidate := candidate_variant as Node
+		if not is_instance_valid(candidate):
+			continue
+		if candidate is CanvasItem and not (candidate as CanvasItem).is_visible_in_tree():
+			continue
+		var text_value: Variant = candidate.get("text")
+		if text_value is String:
+			var text := TargetSupport.normalize_prompt_text(text_value as String)
+			if not text.is_empty() and text.contains(target_name):
+				return true
 	return false
-
-
-func _normalize_prompt_text(text: String) -> String:
-	return text.strip_edges().to_lower()
 
 
 func _build_target_data(node: Node3D) -> Dictionary:
@@ -848,7 +1062,7 @@ func _resolve_container_from_node(node: Node) -> Node3D:
 	var current: Node = node
 	var depth := 0
 	while current != null and depth < 32:
-		if current is Node3D and _looks_like_container(current):
+		if current is Node3D and TargetSupport.looks_like_container(current):
 			var container := current as Node3D
 			_register_candidate(container)
 			return container
@@ -863,24 +1077,41 @@ func _render_item_rows(node: Node, summaries: Dictionary) -> void:
 	_rendered_item_rows.clear()
 	_rendered_placeholder_row = null
 	_placeholder_blocks.clear()
-	for child in _items_box.get_children():
-		child.queue_free()
+	_rendered_row_start = -1
+	_rendered_row_end = -1
+	_queue_clear_children(_items_box)
+	_layout_dirty = true
 
 	if bool(node.get("locked")):
-		_items_box.add_child(_make_row("LOCKED", false, true))
+		_items_box.add_child(
+			PanelSupport.make_row(_ui_theme, _ui_tile, ITEM_ROW_HEIGHT, "LOCKED", false, true)
+		)
 
 	if summaries.is_empty():
 		_set_item_column_width(ITEM_COL_MIN_WIDTH)
 		_visible_item_names.clear()
 		if _is_rummage_loading(node.get_instance_id()):
-			_rendered_placeholder_row = _make_placeholder_row(0, ITEM_COL_MIN_WIDTH)
+			_rendered_placeholder_row = PanelSupport.make_placeholder_row(
+				_ui_theme,
+				ITEM_ROW_HEIGHT,
+				ROW_SIDE_PAD,
+				ROW_PREFIX_WIDTH,
+				COL_SEPARATION,
+				WEIGHT_COL_WIDTH,
+				CONDITION_COL_WIDTH,
+				0,
+				ITEM_COL_MIN_WIDTH,
+				_placeholder_blocks,
+				_placeholder_tint()
+			)
 			_items_box.add_child(_rendered_placeholder_row)
 			return
-		_items_box.add_child(_make_row("Empty", false, false))
+		_items_box.add_child(
+			PanelSupport.make_row(_ui_theme, _ui_tile, ITEM_ROW_HEIGHT, "Empty", false, false)
+		)
 		return
 
-	var names: Array = summaries.keys()
-	names.sort()
+	var names := _sorted_item_names(summaries)
 	var item_col_width := _item_name_column_width(summaries)
 	_set_item_column_width(item_col_width)
 	var revealed_count := _revealed_item_count(node.get_instance_id(), names.size())
@@ -892,96 +1123,216 @@ func _render_item_rows(node: Node, summaries: Dictionary) -> void:
 	var selected_index := int(_selection_by_id.get(node.get_instance_id(), 0))
 	selected_index = clampi(selected_index, 0, maxi(visible_names.size() - 1, 0))
 	_selection_by_id[node.get_instance_id()] = selected_index
+	var window := _row_window_range(visible_names.size(), selected_index)
+	var window_start := int(window.get("start", 0))
+	var window_end := int(window.get("end", 0))
+	_debug_last_visible_window_size = int(window.get("visible_window_size", 0))
+	_debug_last_render_window_size = int(window.get("render_window_size", 0))
+	var has_placeholder := visible_names.size() < names.size()
+	var render_placeholder := _render_placeholder_for_window(
+		visible_names.size(), has_placeholder, window_end
+	)
+
+	_rendered_row_start = window_start
+	_rendered_row_end = window_end
+
+	var top_spacer_height := _row_top_spacer_height(window_start)
+	_debug_last_top_spacer_height = top_spacer_height
+	if top_spacer_height > 0.0:
+		_items_box.add_child(PanelSupport.make_spacer(top_spacer_height))
 
 	var selected_row: Control = null
-	for i in range(visible_names.size()):
+	for i in range(window_start, window_end):
 		var item_name := str(visible_names[i])
 		var summary := summaries[item_name] as Dictionary
 		var amount := int(summary.get("amount", 1))
 		var line_text := "%s x%d" % [item_name, amount] if amount > 1 else item_name
-		var row := _make_item_row(
-				line_text,
-				item_col_width,
-				ItemSupport.format_weight(float(summary.get("weight", 0.0))),
-				str(summary.get("condition", "--")),
-				ItemSupport.rarity_color(
-					str(summary.get("rarity", ItemSupport.RARITY_COMMON)),
-					_rarity_colors_enabled(),
-					_rarity_color_map()
-				),
-				i == selected_index
-			)
+		var row := PanelSupport.make_item_row(
+			_ui_theme,
+			ITEM_ROW_HEIGHT,
+			ROW_PREFIX_WIDTH,
+			COL_SEPARATION,
+			WEIGHT_COL_WIDTH,
+			CONDITION_COL_WIDTH,
+			_row_style(true),
+			_row_style(false),
+			line_text,
+			item_col_width,
+			ItemSupport.format_weight(float(summary.get("weight", 0.0))),
+			str(summary.get("condition", "--")),
+			ItemSupport.rarity_color(
+				str(summary.get("rarity", ItemSupport.RARITY_COMMON)),
+				_rarity_colors_enabled(),
+				_rarity_color_map()
+			),
+			i == selected_index
+		)
+		row.set_meta(&"peek_item_index", i)
 		_rendered_item_rows.append(row)
 		_items_box.add_child(row)
 		if i == selected_index:
 			selected_row = row
 
-	if visible_names.size() < names.size():
-		_rendered_placeholder_row = _make_placeholder_row(visible_names.size(), item_col_width)
+	if render_placeholder:
+		_rendered_placeholder_row = PanelSupport.make_placeholder_row(
+			_ui_theme,
+			ITEM_ROW_HEIGHT,
+			ROW_SIDE_PAD,
+			ROW_PREFIX_WIDTH,
+			COL_SEPARATION,
+			WEIGHT_COL_WIDTH,
+			CONDITION_COL_WIDTH,
+			visible_names.size(),
+			item_col_width,
+			_placeholder_blocks,
+			_placeholder_tint()
+		)
 		_items_box.add_child(_rendered_placeholder_row)
-		var selection_at_bottom := selected_index == visible_names.size() - 1
-		if selection_at_bottom:
-			_request_row_visible(_rendered_placeholder_row)
-			return
+
+	var bottom_spacer_height := _row_bottom_spacer_height(
+		visible_names.size(), has_placeholder, window_end, render_placeholder
+	)
+	_debug_last_bottom_spacer_height = bottom_spacer_height
+	if bottom_spacer_height > 0.0:
+		_items_box.add_child(PanelSupport.make_spacer(bottom_spacer_height))
+
+	if _pending_scroll_request == SCROLL_REQUEST_TOP:
+		_pending_scroll_request = SCROLL_REQUEST_NONE
+		_queue_scroll_top()
+		_debug_queue_scroll_report("render-top")
+		return
 
 	if selected_row != null:
-		_request_row_visible(selected_row)
-
-
-func _make_row(text: String, selected: bool, status: bool) -> Control:
-	var row := PanelContainer.new()
-	row.theme = _ui_theme
-	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	row.custom_minimum_size = Vector2(0.0, float(ITEM_ROW_HEIGHT))
-	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-
-	var style: StyleBox
-	if selected:
-		if _ui_tile != null:
-			var textured := StyleBoxTexture.new()
-			textured.texture = _ui_tile
-			textured.texture_margin_left = 1.0
-			textured.texture_margin_top = 1.0
-			textured.texture_margin_right = 1.0
-			textured.texture_margin_bottom = 1.0
-			textured.modulate_color = Color(1.0, 1.0, 1.0, 0.32)
-			style = textured
+		var selection_at_bottom := (
+			_rendered_placeholder_row != null
+			and is_instance_valid(_rendered_placeholder_row)
+			and selected_index == _visible_item_names.size() - 1
+		)
+		if selection_at_bottom:
+			_queue_scroll_control_visible(_rendered_placeholder_row)
 		else:
-			var selected_fallback := StyleBoxFlat.new()
-			selected_fallback.bg_color = Color(0.2, 0.2, 0.2, 0.9)
-			style = selected_fallback
-	else:
-		var empty_style := StyleBoxEmpty.new()
-		empty_style.content_margin_left = 2.0
-		empty_style.content_margin_right = 2.0
-		style = empty_style
-	row.add_theme_stylebox_override("panel", style)
+			_queue_scroll_control_visible(selected_row)
+		_debug_queue_scroll_report("render")
 
-	var label := Label.new()
-	label.theme = _ui_theme
-	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	label.text = ("> " if selected else "  ") + text
-	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	label.add_theme_font_size_override("font_size", 13)
-	if status:
-		label.add_theme_color_override("font_color", Color(1.0, 0.87, 0.55, 1.0))
-	elif selected:
-		label.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0, 1.0))
-	else:
-		label.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0, 0.78))
-	row.add_child(label)
-	return row
+
+func _cycle_sort_mode() -> void:
+	_sort_mode = posmod(_sort_mode + 1, 3)
+	_store_sort_mode()
+	_refresh_hint_if_needed()
+	_reset_view_for_sort_change()
+	_last_render_target_id = -1
+
+
+func _reset_view_for_target_change(target_id: int) -> void:
+	_selection_by_id[target_id] = 0
+	_visible_item_names.clear()
+	_pending_scroll_request = SCROLL_REQUEST_TOP
+	_last_selection_step = 0
+	_rendered_row_start = -1
+	_rendered_row_end = -1
+
+
+func _reset_view_for_sort_change() -> void:
+	if _current_target_id != -1:
+		_selection_by_id[_current_target_id] = 0
+	_visible_item_names.clear()
+	_pending_scroll_request = SCROLL_REQUEST_TOP
+	_last_selection_step = 0
+	_rendered_row_start = -1
+	_rendered_row_end = -1
+
+
+func _store_sort_mode() -> void:
+	var config_node := get_node_or_null("/root/ContainerPeekConfig")
+	if config_node != null and config_node.has_method("set_int"):
+		config_node.call("set_int", SORT_MODE_SECTION, SORT_MODE_KEY, _sort_mode)
+		return
+	var config := ConfigFile.new()
+	if config.load(ConfigSupport.CONFIG_PATH) != OK:
+		config = ConfigFile.new()
+	config.set_value(SORT_MODE_SECTION, SORT_MODE_KEY, _sort_mode)
+	config.save(ConfigSupport.CONFIG_PATH)
+
+
+func _sort_mode_label() -> String:
+	match _sort_mode:
+		SORT_MODE_RARITY:
+			return "Rarity"
+		SORT_MODE_WEIGHT:
+			return "Weight"
+		_:
+			return "Name"
+
+
+func _sorted_item_names(summaries: Dictionary) -> Array:
+	if (
+		_cached_sorted_target_id == _current_target_id
+		and _cached_sorted_sort_mode == _sort_mode
+		and _cached_sorted_signature == _cached_summary_signature
+	):
+		return _cached_sorted_names
+
+	var names: Array = summaries.keys()
+	names.sort_custom(
+		func(a: Variant, b: Variant) -> bool: return _item_name_less(str(a), str(b), summaries)
+	)
+	_cached_sorted_target_id = _current_target_id
+	_cached_sorted_sort_mode = _sort_mode
+	_cached_sorted_signature = _cached_summary_signature
+	_cached_sorted_names = names
+	return _cached_sorted_names
+
+
+func _item_name_less(a: String, b: String, summaries: Dictionary) -> bool:
+	var a_summary := summaries.get(a, {}) as Dictionary
+	var b_summary := summaries.get(b, {}) as Dictionary
+	match _sort_mode:
+		SORT_MODE_RARITY:
+			var a_rank := _rarity_rank(str(a_summary.get("rarity", ItemSupport.RARITY_COMMON)))
+			var b_rank := _rarity_rank(str(b_summary.get("rarity", ItemSupport.RARITY_COMMON)))
+			if a_rank != b_rank:
+				return a_rank > b_rank
+		SORT_MODE_WEIGHT:
+			var a_weight := float(a_summary.get("weight", 0.0))
+			var b_weight := float(b_summary.get("weight", 0.0))
+			if not is_equal_approx(a_weight, b_weight):
+				return a_weight > b_weight
+		_:
+			pass
+	return a.nocasecmp_to(b) < 0
+
+
+func _rarity_rank(rarity: String) -> int:
+	match ItemSupport.normalize_rarity_value(rarity).to_lower():
+		"legendary":
+			return 4
+		"epic":
+			return 3
+		"rare":
+			return 2
+		"uncommon":
+			return 1
+		_:
+			return 0
 
 
 func _item_name_column_width(summaries: Dictionary) -> float:
+	if (
+		_cached_sorted_target_id == _current_target_id
+		and _cached_sorted_sort_mode == _sort_mode
+		and _cached_sorted_signature == _cached_summary_signature
+		and _cached_item_col_width > 0.0
+	):
+		return _cached_item_col_width
+
 	var width := ITEM_COL_MIN_WIDTH
 	for item_name in summaries.keys():
 		var summary := summaries[item_name] as Dictionary
 		var amount := int(summary.get("amount", 1))
 		var line_text := "%s x%d" % [str(item_name), amount] if amount > 1 else str(item_name)
 		width = maxf(width, _measure_item_text_width(line_text))
-	return width
+	_cached_item_col_width = width
+	return _cached_item_col_width
 
 
 func _measure_item_text_width(text: String) -> float:
@@ -1010,208 +1361,10 @@ func _item_row_font() -> Font:
 	return _item_font
 
 
-func _make_placeholder_row(index: int, item_col_width: float) -> Control:
-	var row := PanelContainer.new()
-	row.theme = _ui_theme
-	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	row.custom_minimum_size = Vector2(0.0, float(ITEM_ROW_HEIGHT))
-	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-
-	var style := StyleBoxEmpty.new()
-	style.content_margin_left = ROW_SIDE_PAD
-	style.content_margin_right = ROW_SIDE_PAD
-	row.add_theme_stylebox_override("panel", style)
-
-	var margins := MarginContainer.new()
-	margins.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	margins.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	margins.add_theme_constant_override("margin_top", 5)
-	margins.add_theme_constant_override("margin_bottom", 5)
-	row.add_child(margins)
-
-	var box := HBoxContainer.new()
-	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	box.add_theme_constant_override("separation", COL_SEPARATION)
-	margins.add_child(box)
-
-	var prefix_spacer := Control.new()
-	prefix_spacer.custom_minimum_size = Vector2(ROW_PREFIX_WIDTH, 0.0)
-	box.add_child(prefix_spacer)
-
-	var item_widths := [0.92, 0.76, 1.0, 0.84]
-	var item_bar := _make_placeholder_bar(item_col_width * float(item_widths[index % item_widths.size()]))
-	box.add_child(item_bar)
-
-	var item_filler := Control.new()
-	item_filler.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	box.add_child(item_filler)
-
-	box.add_child(_make_placeholder_bar(WEIGHT_COL_WIDTH - 12.0))
-	box.add_child(_make_placeholder_bar(CONDITION_COL_WIDTH - 14.0))
-
-	return row
-
-
-func _make_placeholder_bar(width: float) -> ColorRect:
-	var bar := ColorRect.new()
-	bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	bar.color = _placeholder_tint()
-	bar.custom_minimum_size = Vector2(maxf(12.0, width), PLACEHOLDER_BAR_HEIGHT)
-	_placeholder_blocks.append(bar)
-	return bar
-
-
-func _make_header_row() -> Control:
-	var row := HBoxContainer.new()
-	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	row.add_theme_constant_override("separation", COL_SEPARATION)
-
-	var prefix_spacer := Control.new()
-	prefix_spacer.custom_minimum_size = Vector2(ROW_PREFIX_WIDTH, 0.0)
-	row.add_child(prefix_spacer)
-
-	_header_item_label = Label.new()
-	_header_item_label.theme = _ui_theme
-	_header_item_label.text = "Item"
-	_header_item_label.custom_minimum_size = Vector2(ITEM_COL_MIN_WIDTH, 0.0)
-	_header_item_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_header_item_label.add_theme_font_size_override("font_size", 11)
-	_header_item_label.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0, 0.5))
-	row.add_child(_header_item_label)
-
-	var weight_label := Label.new()
-	weight_label.theme = _ui_theme
-	weight_label.text = "Weight"
-	weight_label.custom_minimum_size = Vector2(WEIGHT_COL_WIDTH, 0.0)
-	weight_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	weight_label.add_theme_font_size_override("font_size", 11)
-	weight_label.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0, 0.5))
-	row.add_child(weight_label)
-
-	var condition_label := Label.new()
-	condition_label.theme = _ui_theme
-	condition_label.text = "Cond."
-	condition_label.custom_minimum_size = Vector2(CONDITION_COL_WIDTH, 0.0)
-	condition_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	condition_label.add_theme_font_size_override("font_size", 11)
-	condition_label.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0, 0.5))
-	row.add_child(condition_label)
-
-	return row
-
-
 func _set_item_column_width(item_col_width: float) -> void:
 	if _header_item_label == null:
 		return
 	_header_item_label.custom_minimum_size = Vector2(maxf(ITEM_COL_MIN_WIDTH, item_col_width), 0.0)
-
-
-func _make_item_row(
-	text: String,
-	item_col_width: float,
-	weight_text: String,
-	condition_text: String,
-	rarity_color: Color,
-	selected: bool
-) -> Control:
-	var row := PanelContainer.new()
-	row.theme = _ui_theme
-	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	row.custom_minimum_size = Vector2(0.0, float(ITEM_ROW_HEIGHT))
-	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-
-	var style: StyleBox
-	if selected:
-		if _ui_tile != null:
-			var textured := StyleBoxTexture.new()
-			textured.texture = _ui_tile
-			textured.texture_margin_left = 1.0
-			textured.texture_margin_top = 1.0
-			textured.texture_margin_right = 1.0
-			textured.texture_margin_bottom = 1.0
-			textured.content_margin_left = ROW_SIDE_PAD
-			textured.content_margin_right = ROW_SIDE_PAD
-			textured.modulate_color = Color(1.0, 1.0, 1.0, 0.32)
-			style = textured
-		else:
-			var selected_fallback := StyleBoxFlat.new()
-			selected_fallback.bg_color = Color(0.2, 0.2, 0.2, 0.9)
-			selected_fallback.content_margin_left = ROW_SIDE_PAD
-			selected_fallback.content_margin_right = ROW_SIDE_PAD
-			style = selected_fallback
-	else:
-		var empty_style := StyleBoxEmpty.new()
-		empty_style.content_margin_left = ROW_SIDE_PAD
-		empty_style.content_margin_right = ROW_SIDE_PAD
-		style = empty_style
-	row.add_theme_stylebox_override("panel", style)
-
-	var box := HBoxContainer.new()
-	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	box.add_theme_constant_override("separation", COL_SEPARATION)
-	row.add_child(box)
-
-	var prefix_label := Label.new()
-	prefix_label.theme = _ui_theme
-	prefix_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	prefix_label.text = ">" if selected else ""
-	prefix_label.custom_minimum_size = Vector2(ROW_PREFIX_WIDTH, 0.0)
-	prefix_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	prefix_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	prefix_label.add_theme_font_size_override("font_size", 13)
-	prefix_label.add_theme_color_override(
-		"font_color", Color(1.0, 1.0, 1.0, 1.0) if selected else Color(1.0, 1.0, 1.0, 0.0)
-	)
-	box.add_child(prefix_label)
-
-	var name_label := Label.new()
-	name_label.theme = _ui_theme
-	name_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	name_label.text = text
-	name_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	name_label.custom_minimum_size = Vector2(item_col_width, 0.0)
-	name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	name_label.add_theme_font_size_override("font_size", 13)
-	name_label.add_theme_color_override(
-		"font_color", rarity_color
-	)
-	box.add_child(name_label)
-
-	var weight_label := Label.new()
-	weight_label.theme = _ui_theme
-	weight_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	weight_label.text = weight_text
-	weight_label.custom_minimum_size = Vector2(WEIGHT_COL_WIDTH, 0.0)
-	weight_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	weight_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	weight_label.add_theme_font_size_override("font_size", 12)
-	weight_label.add_theme_color_override(
-		"font_color", Color(1.0, 1.0, 1.0, 1.0) if selected else Color(1.0, 1.0, 1.0, 0.66)
-	)
-	box.add_child(weight_label)
-
-	var condition_label := Label.new()
-	condition_label.theme = _ui_theme
-	condition_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	condition_label.text = condition_text
-	condition_label.custom_minimum_size = Vector2(CONDITION_COL_WIDTH, 0.0)
-	condition_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	condition_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	condition_label.add_theme_font_size_override("font_size", 12)
-	condition_label.add_theme_color_override(
-		"font_color", Color(1.0, 1.0, 1.0, 1.0) if selected else Color(1.0, 1.0, 1.0, 0.66)
-	)
-	box.add_child(condition_label)
-
-	row.set_meta(&"peek_prefix_label", prefix_label)
-	row.set_meta(&"peek_name_label", name_label)
-	row.set_meta(&"peek_weight_label", weight_label)
-	row.set_meta(&"peek_condition_label", condition_label)
-	row.set_meta(&"peek_rarity_color", rarity_color)
-
-	return row
 
 
 func _sync_header_alignment() -> void:
@@ -1222,9 +1375,12 @@ func _sync_header_alignment() -> void:
 	var v_scroll := _item_scroll.get_v_scroll_bar()
 	if v_scroll != null and v_scroll.visible:
 		gutter = int(ceil(v_scroll.size.x))
+	if gutter == _last_header_gutter:
+		return
 
 	_header_margin.add_theme_constant_override("margin_left", ROW_SIDE_PAD)
 	_header_margin.add_theme_constant_override("margin_right", ROW_SIDE_PAD + gutter)
+	_last_header_gutter = gutter
 
 
 func _refresh_rendered_selection(container_id: int) -> void:
@@ -1232,112 +1388,253 @@ func _refresh_rendered_selection(container_id: int) -> void:
 		return
 
 	var selected_index := int(_selection_by_id.get(container_id, 0))
-	selected_index = clampi(selected_index, 0, maxi(_rendered_item_rows.size() - 1, 0))
+	selected_index = clampi(selected_index, 0, maxi(_visible_item_names.size() - 1, 0))
 	_selection_by_id[container_id] = selected_index
 
-	var selected_row: Control = null
-	for i in range(_rendered_item_rows.size()):
-		var row_variant: Variant = _rendered_item_rows[i]
-		if not (row_variant is Control):
-			continue
-		var row := row_variant as Control
-		_apply_item_row_selection(row, i == selected_index)
-		if i == selected_index:
-			selected_row = row
+	var previous_selected_index := _last_render_selection
+	var previous_row := _rendered_row_for_index(previous_selected_index)
+	var selected_row := _rendered_row_for_index(selected_index)
+
+	if previous_row != null and previous_selected_index != selected_index:
+		PanelSupport.apply_item_row_selection(
+			previous_row, false, _row_style(true), _row_style(false)
+		)
+	if selected_row != null:
+		PanelSupport.apply_item_row_selection(
+			selected_row, true, _row_style(true), _row_style(false)
+		)
 
 	if _rendered_placeholder_row != null and is_instance_valid(_rendered_placeholder_row):
-		var selection_at_bottom := selected_index == _rendered_item_rows.size() - 1
+		var selection_at_bottom := selected_index == _visible_item_names.size() - 1
 		if selection_at_bottom:
-			_request_row_visible(_rendered_placeholder_row)
+			_queue_scroll_control_visible(_rendered_placeholder_row)
+			_debug_queue_scroll_report("selection-placeholder")
 			return
 
 	if selected_row != null:
-		_request_row_visible(selected_row)
+		_queue_scroll_control_visible(selected_row)
+		_debug_queue_scroll_report("selection")
 
 
-func _apply_item_row_selection(row: Control, selected: bool) -> void:
-	if row == null or not is_instance_valid(row):
-		return
-	if not (row is PanelContainer):
-		return
+func _rendered_row_for_index(item_index: int) -> Control:
+	if item_index < 0:
+		return null
+	for row_variant in _rendered_item_rows:
+		if not (row_variant is Control):
+			continue
+		var row := row_variant as Control
+		if int(row.get_meta(&"peek_item_index", -1)) == item_index:
+			return row
+	return null
 
-	var panel_row := row as PanelContainer
-	var style: StyleBox
+
+func _row_style(selected: bool) -> StyleBox:
 	if selected:
-		if _ui_tile != null:
-			var textured := StyleBoxTexture.new()
-			textured.texture = _ui_tile
-			textured.texture_margin_left = 1.0
-			textured.texture_margin_top = 1.0
-			textured.texture_margin_right = 1.0
-			textured.texture_margin_bottom = 1.0
-			textured.content_margin_left = ROW_SIDE_PAD
-			textured.content_margin_right = ROW_SIDE_PAD
-			textured.modulate_color = Color(1.0, 1.0, 1.0, 0.32)
-			style = textured
-		else:
-			var selected_fallback := StyleBoxFlat.new()
-			selected_fallback.bg_color = Color(0.2, 0.2, 0.2, 0.9)
-			selected_fallback.content_margin_left = ROW_SIDE_PAD
-			selected_fallback.content_margin_right = ROW_SIDE_PAD
-			style = selected_fallback
-	else:
-		var empty_style := StyleBoxEmpty.new()
-		empty_style.content_margin_left = ROW_SIDE_PAD
-		empty_style.content_margin_right = ROW_SIDE_PAD
-		style = empty_style
-	panel_row.add_theme_stylebox_override("panel", style)
+		if _selected_row_style != null:
+			return _selected_row_style
+		_selected_row_style = PanelSupport.make_selected_row_style(_ui_tile, ROW_SIDE_PAD)
+		return _selected_row_style
 
-	var prefix_label := row.get_meta(&"peek_prefix_label", null)
-	if prefix_label is Label:
-		(prefix_label as Label).text = ">" if selected else ""
-		(prefix_label as Label).add_theme_color_override(
-			"font_color", Color(1.0, 1.0, 1.0, 1.0) if selected else Color(1.0, 1.0, 1.0, 0.0)
-		)
-
-	var rarity_color := row.get_meta(&"peek_rarity_color", Color(1.0, 1.0, 1.0, 0.78))
-	var name_label := row.get_meta(&"peek_name_label", null)
-	if name_label is Label:
-		(name_label as Label).add_theme_color_override("font_color", rarity_color)
-
-	var weight_label := row.get_meta(&"peek_weight_label", null)
-	if weight_label is Label:
-		(weight_label as Label).add_theme_color_override(
-			"font_color", Color(1.0, 1.0, 1.0, 1.0) if selected else Color(1.0, 1.0, 1.0, 0.66)
-		)
-
-	var condition_label := row.get_meta(&"peek_condition_label", null)
-	if condition_label is Label:
-		(condition_label as Label).add_theme_color_override(
-			"font_color", Color(1.0, 1.0, 1.0, 1.0) if selected else Color(1.0, 1.0, 1.0, 0.66)
-		)
+	if _plain_row_style == null:
+		_plain_row_style = PanelSupport.make_plain_row_style(ROW_SIDE_PAD)
+	return _plain_row_style
 
 
-func _request_row_visible(row: Control) -> void:
-	if row == null or not is_instance_valid(row):
+func _scroll_top_now() -> void:
+	if _item_scroll == null:
 		return
+	_debug_last_target_scroll = 0
+	_debug_last_scroll_control_name = "<top>"
+	_debug_last_scroll_control_index = 0
+	_debug_last_scroll_control_role = "top"
+	_item_scroll.scroll_vertical = 0
+
+
+func _queue_scroll_top() -> void:
 	_scroll_request_id += 1
-	call_deferred("_ensure_row_visible", row, _scroll_request_id)
+	call_deferred("_deferred_scroll_top", _scroll_request_id)
 
 
-func _ensure_row_visible(row: Control, request_id: int) -> void:
-	if row == null or not is_instance_valid(row) or _item_scroll == null:
-		return
+func _deferred_scroll_top(request_id: int) -> void:
 	if request_id != _scroll_request_id:
 		return
+	_scroll_top_now()
 
-	var row_top := row.position.y
-	var row_bottom := row_top + row.size.y
+
+func _queue_scroll_control_visible(control: Control) -> void:
+	if control == null or not is_instance_valid(control):
+		return
+	_scroll_request_id += 1
+	call_deferred("_deferred_scroll_control_visible", control, _scroll_request_id)
+
+
+func _deferred_scroll_control_visible(control: Control, request_id: int) -> void:
+	if request_id != _scroll_request_id:
+		return
+	if control == null or not is_instance_valid(control):
+		return
+	_scroll_control_visible(control)
+
+
+func _scroll_control_visible(control: Control) -> void:
+	if _item_scroll == null or control == null or not is_instance_valid(control):
+		return
+	var row_top := control.position.y
+	var row_bottom := row_top + control.size.y
 	var visible_top := float(_item_scroll.scroll_vertical)
-	var visible_bottom := visible_top + _item_scroll.size.y
+	var viewport_height := _item_scroll.size.y
+	if viewport_height <= 0.0:
+		viewport_height = _item_scroll.custom_minimum_size.y
+	var visible_bottom := visible_top + viewport_height
 	var target_scroll := _item_scroll.scroll_vertical
 
 	if row_top < visible_top:
 		target_scroll = int(row_top)
 	elif row_bottom > visible_bottom:
-		target_scroll = int(row_bottom - _item_scroll.size.y)
+		target_scroll = int(row_bottom - viewport_height)
 
+	_debug_last_target_scroll = maxi(0, target_scroll)
+	_debug_capture_scroll_control(control)
 	_item_scroll.scroll_vertical = maxi(0, target_scroll)
+
+
+func _debug_queue_scroll_report(reason: String) -> void:
+	if not DEBUG_SCROLL_LOG:
+		return
+	call_deferred("_debug_report_scroll_state", reason)
+
+
+func _debug_report_scroll_state(reason: String) -> void:
+	if not DEBUG_SCROLL_LOG:
+		return
+	if _item_scroll == null or _items_box == null:
+		return
+	if _current_target_id == -1:
+		return
+
+	var selected_index := int(_selection_by_id.get(_current_target_id, -1))
+	var selected_row := _rendered_row_for_index(selected_index)
+	var viewport_height := _item_scroll.size.y
+	if viewport_height <= 0.0:
+		viewport_height = _item_scroll.custom_minimum_size.y
+
+	var selected_top := -1.0
+	var selected_bottom := -1.0
+	var selected_name := "<none>"
+	if selected_index >= 0 and selected_index < _visible_item_names.size():
+		selected_name = str(_visible_item_names[selected_index])
+	if selected_row != null:
+		selected_top = selected_row.position.y
+		selected_bottom = selected_top + selected_row.size.y
+
+	var child_count := _items_box.get_child_count()
+	var first_child_name := "<none>"
+	var last_child_name := "<none>"
+	if child_count > 0:
+		first_child_name = str(_items_box.get_child(0).name)
+		last_child_name = str(_items_box.get_child(child_count - 1).name)
+
+	var first_rendered_index := -1
+	var last_rendered_index := -1
+	if _rendered_item_rows.size() > 0:
+		var first_row := _rendered_item_rows[0] as Control
+		var last_row := _rendered_item_rows[_rendered_item_rows.size() - 1] as Control
+		if first_row != null and first_row.has_meta(&"peek_item_index"):
+			first_rendered_index = int(first_row.get_meta(&"peek_item_index"))
+		if last_row != null and last_row.has_meta(&"peek_item_index"):
+			last_rendered_index = int(last_row.get_meta(&"peek_item_index"))
+
+	var v_scroll := _item_scroll.get_v_scroll_bar()
+	var scroll_max := -1.0
+	var scroll_page := -1.0
+	if v_scroll != null:
+		scroll_max = float(v_scroll.max_value)
+		scroll_page = float(v_scroll.page)
+
+	var line := (
+		"[ContainerPeek][Scroll] %s id=%s sel=%d name='%s' visible=%d step=%d window=%d..%d rendered=%d visible_window=%d render_window=%d scroll=%d target_scroll=%d viewport=%.1f selected_top=%.1f selected_bottom=%.1f items_box_y=%.1f items_box_h=%.1f top_spacer=%.1f bottom_spacer=%.1f layout_dirty=%s last_render_sel=%d children=%d first='%s' last='%s' rendered_first=%d rendered_last=%d control='%s' control_index=%d control_role='%s' scroll_max=%.1f scroll_page=%.1f"
+		% [
+			reason,
+			_current_target_id,
+			selected_index,
+			selected_name,
+			_visible_item_names.size(),
+			_last_selection_step,
+			_rendered_row_start,
+			_rendered_row_end,
+			maxi(0, _rendered_row_end - _rendered_row_start),
+			_debug_last_visible_window_size,
+			_debug_last_render_window_size,
+			_item_scroll.scroll_vertical,
+			_debug_last_target_scroll,
+			viewport_height,
+			selected_top,
+			selected_bottom,
+			_items_box.position.y,
+			_items_box.size.y,
+			_debug_last_top_spacer_height,
+			_debug_last_bottom_spacer_height,
+			str(_layout_dirty),
+			_last_render_selection,
+			child_count,
+			first_child_name,
+			last_child_name,
+			first_rendered_index,
+			last_rendered_index,
+			_debug_last_scroll_control_name,
+			_debug_last_scroll_control_index,
+			_debug_last_scroll_control_role,
+			scroll_max,
+			scroll_page,
+		]
+	)
+	_debug_append_scroll_log(line)
+
+	if selected_row == null:
+		_debug_append_scroll_log(
+			"[ContainerPeek][Scroll] selected row missing from rendered window"
+		)
+		return
+
+	var visible_top := float(_item_scroll.scroll_vertical)
+	var visible_bottom := visible_top + viewport_height
+	if selected_top < visible_top or selected_bottom > visible_bottom:
+		_debug_append_scroll_log(
+			(
+				"[ContainerPeek][Scroll] selected row not visible after scroll visible_top=%.1f visible_bottom=%.1f"
+				% [visible_top, visible_bottom]
+			)
+		)
+
+
+func _debug_append_scroll_log(line: String) -> void:
+	var file := FileAccess.open(DEBUG_SCROLL_LOG_PATH, FileAccess.READ_WRITE)
+	if file == null:
+		file = FileAccess.open(DEBUG_SCROLL_LOG_PATH, FileAccess.WRITE)
+	if file == null:
+		return
+	file.seek_end()
+	file.store_line(line)
+
+
+func _debug_capture_scroll_control(control: Control) -> void:
+	if control == null or not is_instance_valid(control):
+		_debug_last_scroll_control_name = "<none>"
+		_debug_last_scroll_control_index = -1
+		_debug_last_scroll_control_role = ""
+		return
+
+	_debug_last_scroll_control_name = str(control.name)
+	_debug_last_scroll_control_index = -1
+	if control.has_meta(&"peek_item_index"):
+		_debug_last_scroll_control_index = int(control.get_meta(&"peek_item_index"))
+
+	if control == _rendered_placeholder_row:
+		_debug_last_scroll_control_role = "placeholder"
+	elif control in _rendered_item_rows:
+		_debug_last_scroll_control_role = "row"
+	else:
+		_debug_last_scroll_control_role = "control"
 
 
 func _rarity_colors_enabled() -> bool:
@@ -1346,15 +1643,12 @@ func _rarity_colors_enabled() -> bool:
 
 func _rarity_color_map() -> Dictionary:
 	return {
-		"common": ConfigSupport.color_setting(
-			self, RARITY_COMMON_COLOR_KEY, Color(1.0, 1.0, 1.0, 0.78)
-		),
-		"rare": ConfigSupport.color_setting(
-			self, RARITY_RARE_COLOR_KEY, Color(0.45, 0.78, 1.0, 0.95)
-		),
-		"legendary": ConfigSupport.color_setting(
-			self, RARITY_LEGENDARY_COLOR_KEY, Color(1.0, 0.75, 0.28, 0.95)
-		),
+		"common":
+		ConfigSupport.color_setting(self, RARITY_COMMON_COLOR_KEY, Color(1.0, 1.0, 1.0, 0.78)),
+		"rare":
+		ConfigSupport.color_setting(self, RARITY_RARE_COLOR_KEY, Color(0.45, 0.78, 1.0, 0.95)),
+		"legendary":
+		ConfigSupport.color_setting(self, RARITY_LEGENDARY_COLOR_KEY, Color(1.0, 0.75, 0.28, 0.95)),
 	}
 
 
@@ -1366,8 +1660,10 @@ func _rarity_color_signature() -> String:
 		if color is Color:
 			var rarity_color := color as Color
 			parts.append(
-				"%s=%.3f,%.3f,%.3f,%.3f"
-				% [rarity, rarity_color.r, rarity_color.g, rarity_color.b, rarity_color.a]
+				(
+					"%s=%.3f,%.3f,%.3f,%.3f"
+					% [rarity, rarity_color.r, rarity_color.g, rarity_color.b, rarity_color.a]
+				)
 			)
 	return "|".join(parts)
 
@@ -1434,7 +1730,11 @@ func _current_selected_item_name() -> String:
 
 
 func _current_target_is_loading() -> bool:
-	if _last_focus_node == null or not is_instance_valid(_last_focus_node) or _current_target_id == -1:
+	if (
+		_last_focus_node == null
+		or not is_instance_valid(_last_focus_node)
+		or _current_target_id == -1
+	):
 		return false
 	return _is_rummage_loading(_current_target_id)
 
@@ -1463,6 +1763,7 @@ func _try_take_all_selected_container() -> bool:
 
 	if moved_any and _current_target_id != -1:
 		_selection_by_id[_current_target_id] = 0
+		_invalidate_summary_cache()
 		_last_render_target_id = -1
 	return moved_any
 
@@ -1500,6 +1801,8 @@ func _try_direct_slot_transfer(container_node: Node, slot: Variant) -> bool:
 		return false
 
 	ItemSupport.remove_slot_from_container(container_node, slot)
+	_invalidate_summary_cache()
+	_refresh_interface_state(interface_node)
 	_last_render_target_id = -1
 	if interface_node.has_method("Reset"):
 		interface_node.call("Reset")
@@ -1511,6 +1814,12 @@ func _try_direct_slot_transfer(container_node: Node, slot: Variant) -> bool:
 func _play_error_beep(interface_node: Node) -> void:
 	if interface_node.has_method("PlayError"):
 		interface_node.call("PlayError")
+
+
+func _refresh_interface_state(interface_node: Node) -> void:
+	# Popup transfers bypass the native inventory loop, so force the same weight/overweight refresh.
+	if interface_node.has_method("UpdateStats"):
+		interface_node.call("UpdateStats", bool(interface_node.visible))
 
 
 func _resolve_interface_node() -> Node:
@@ -1531,6 +1840,30 @@ func _resolve_interface_node() -> Node:
 	if root != null:
 		return root.get_node_or_null("Map/Core/UI/Interface")
 	return null
+
+
+func _resolve_ui_root() -> Node:
+	var tree := get_tree()
+	if tree == null:
+		return null
+
+	var scene := tree.current_scene
+	if scene != null:
+		var by_abs := scene.get_node_or_null("/root/Map/Core/UI")
+		if by_abs != null:
+			return by_abs
+		var by_rel := scene.get_node_or_null("Core/UI")
+		if by_rel != null:
+			return by_rel
+
+	var root := tree.root
+	if root != null:
+		return root.get_node_or_null("Map/Core/UI")
+	return null
+
+
+func _xp_skills_compat_enabled() -> bool:
+	return ConfigSupport.bool_setting(self, XP_SKILLS_COMPAT_KEY, true)
 
 
 func _resolve_inventory_grid(interface_node: Node) -> Node:

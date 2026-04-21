@@ -7,13 +7,17 @@ const MOD_NAME := "Container Peek"
 const CONFIG_DIR := "user://MCM/%s" % MOD_ID
 const CONFIG_FILE := "config.ini"
 const MCM_HELPERS_RES := "res://ModConfigurationMenu/Scripts/Doink Oink/MCM_Helpers.tres"
+const XP_SKILLS_MAIN_RES := "res://mods/XPSkillsSystem/Main.gd"
 
 const TRANSFER_ACTION := &"container_peek_transfer"
 const TAKE_ALL_ACTION := &"container_peek_take_all"
+const SORT_ACTION := &"container_peek_sort"
 const RARITY_COLORS_KEY := "rarity_colors"
 const RUMMAGE_TIME_KEY := "rummage_seconds_per_item"
 const RUMMAGE_AUDIO_KEY := "rummage_audio"
+const RUMMAGE_IN_SHELTER_KEY := "rummage_in_shelter"
 const PANEL_OPACITY_KEY := "panel_opacity"
+const XP_SKILLS_COMPAT_KEY := "xp_skills_compat"
 const RARITY_COMMON_COLOR_KEY := "rarity_common_color"
 const RARITY_RARE_COLOR_KEY := "rarity_rare_color"
 const RARITY_LEGENDARY_COLOR_KEY := "rarity_legendary_color"
@@ -84,6 +88,22 @@ func get_color(setting_key: String, default_value: Color = Color(1.0, 1.0, 1.0, 
 	return default_value
 
 
+func get_int(section: String, setting_key: String, default_value: int = 0) -> int:
+	var value: Variant = _config.get_value(section, setting_key, default_value)
+	if value is Dictionary:
+		value = (value as Dictionary).get("value", default_value)
+	if value is int:
+		return int(value)
+	if value is float:
+		return int(round(value))
+	return default_value
+
+
+func set_int(section: String, setting_key: String, value: int) -> void:
+	_config.set_value(section, setting_key, value)
+	_config.save(_config_path())
+
+
 func _on_config_saved(config: ConfigFile) -> void:
 	_config = config
 	_apply_input_actions()
@@ -97,6 +117,13 @@ func _load_mcm_helpers() -> Resource:
 
 func _build_default_config() -> ConfigFile:
 	var config := ConfigFile.new()
+	var xp_skills_detected := _xp_skills_detected()
+	var xp_skills_status := "Detected" if xp_skills_detected else "Not Detected"
+	var xp_skills_tooltip := (
+		"Container Peek will trigger XP & Skills System search XP and scavenger bonuses from the popup window."
+		if xp_skills_detected
+		else "XP & Skills System was not detected. This toggle does nothing unless that mod is installed."
+	)
 	(
 		config
 		. set_value(
@@ -132,6 +159,22 @@ func _build_default_config() -> ConfigFile:
 	(
 		config
 		. set_value(
+			"Keycode",
+			String(SORT_ACTION),
+			{
+				"name": "Cycle Sort",
+				"tooltip": "Cycle the preview list between name, rarity, and weight sorting.",
+				"default": KEY_V,
+				"default_type": "Key",
+				"value": KEY_V,
+				"type": "Key",
+				"menu_pos": 25,
+			}
+		)
+	)
+	(
+		config
+		. set_value(
 			"Bool",
 			RARITY_COLORS_KEY,
 			{
@@ -150,7 +193,8 @@ func _build_default_config() -> ConfigFile:
 			RUMMAGE_TIME_KEY,
 			{
 				"name": "Rummage Time / Item",
-				"tooltip": "Seconds each item row takes to appear the first time you inspect a container. Set to 0 to disable.",
+				"tooltip":
+				"Seconds each item row takes to appear the first time you inspect a container. Set to 0 to disable.",
 				"default": 0.0,
 				"value": 0.0,
 				"minRange": 0.0,
@@ -177,6 +221,20 @@ func _build_default_config() -> ConfigFile:
 	(
 		config
 		. set_value(
+			"Bool",
+			RUMMAGE_IN_SHELTER_KEY,
+			{
+				"name": "Rummage In Shelter",
+				"tooltip": "Allow rummaging delays while inspecting containers in the shelter.",
+				"default": false,
+				"value": false,
+				"menu_pos": 44,
+			}
+		)
+	)
+	(
+		config
+		. set_value(
 			"Float",
 			PANEL_OPACITY_KEY,
 			{
@@ -188,6 +246,20 @@ func _build_default_config() -> ConfigFile:
 				"maxRange": 1.0,
 				"step": 0.05,
 				"menu_pos": 45,
+			}
+		)
+	)
+	(
+		config
+		. set_value(
+			"Bool",
+			XP_SKILLS_COMPAT_KEY,
+			{
+				"name": "XP & Skills Compat [%s]" % xp_skills_status,
+				"tooltip": xp_skills_tooltip,
+				"default": true,
+				"value": true,
+				"menu_pos": 46,
 			}
 		)
 	)
@@ -253,6 +325,13 @@ func _config_path() -> String:
 func _apply_input_actions() -> void:
 	_set_action(TRANSFER_ACTION, _input_event_from_data(_binding_data(TRANSFER_ACTION)))
 	_set_action(TAKE_ALL_ACTION, _input_event_from_data(_binding_data(TAKE_ALL_ACTION)))
+	_set_action(SORT_ACTION, _input_event_from_data(_binding_data(SORT_ACTION)))
+
+
+func _xp_skills_detected() -> bool:
+	if Engine.get_meta("XPMain", null) != null:
+		return true
+	return ResourceLoader.exists(XP_SKILLS_MAIN_RES)
 
 
 func _binding_data(action_name: StringName) -> Dictionary:

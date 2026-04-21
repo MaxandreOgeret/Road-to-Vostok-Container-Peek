@@ -7,3 +7,6 @@ priority=10
 [autoload]
 ContainerPeekConfig="res://ContainerPeek/Config.gd"
 ContainerPeek="res://ContainerPeek/Main.gd"
+
+[updates]
+modworkshop=56249

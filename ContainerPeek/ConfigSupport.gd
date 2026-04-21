@@ -46,6 +46,25 @@ static func float_setting(owner: Node, setting_key: String, default_value: float
 	return default_value
 
 
+static func int_setting(
+	owner: Node, section: String, setting_key: String, default_value: int = 0
+) -> int:
+	var config_node := owner.get_node_or_null("/root/ContainerPeekConfig")
+	if config_node != null and config_node.has_method("get_int"):
+		return int(config_node.call("get_int", section, setting_key, default_value))
+
+	var config := ConfigFile.new()
+	if config.load(CONFIG_PATH) == OK:
+		var value: Variant = config.get_value(section, setting_key, default_value)
+		if value is Dictionary:
+			value = (value as Dictionary).get("value", default_value)
+		if value is int:
+			return int(value)
+		if value is float:
+			return int(round(value))
+	return default_value
+
+
 static func color_setting(owner: Node, setting_key: String, default_value: Color) -> Color:
 	var config_node := owner.get_node_or_null("/root/ContainerPeekConfig")
 	if config_node != null and config_node.has_method("get_color"):
