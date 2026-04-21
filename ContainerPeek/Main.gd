@@ -857,7 +857,7 @@ func _maybe_play_rummage_zipper(
 	var last_zipper_reveal := int(state.get("last_zipper_reveal", 0))
 	var start_reveal := maxi(previous_revealed, last_zipper_reveal)
 	for reveal_index in range(start_reveal, revealed):
-		if randf() < 0.25:
+		if randf() < 0.1:
 			_play_random_zipper_sound()
 	state["last_zipper_reveal"] = revealed
 
