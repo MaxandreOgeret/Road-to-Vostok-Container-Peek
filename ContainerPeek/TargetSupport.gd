@@ -25,6 +25,46 @@ static func looks_like_container(node: Node) -> bool:
 	return false
 
 
+static func is_corpse(node: Node) -> bool:
+	if node == null:
+		return false
+
+	var current: Node = node
+	var depth := 0
+	while current != null and depth < 32:
+		if _node_looks_like_corpse(current):
+			return true
+		current = current.get_parent()
+		depth += 1
+
+	return false
+
+
+static func is_corpse_title(title: String) -> bool:
+	return title.to_lower().contains("corpse")
+
+
+static func _node_looks_like_corpse(node: Node) -> bool:
+	if node == null:
+		return false
+
+	var script: Variant = node.get_script()
+	if script is Script:
+		var script_path := (script as Script).resource_path.to_lower()
+		if script_path.contains("corpse"):
+			return true
+
+	var scene_path := node.scene_file_path.to_lower()
+	if scene_path.contains("corpse"):
+		return true
+
+	var raw_name: Variant = node.get("containerName")
+	if raw_name is String and (raw_name as String).to_lower().contains("corpse"):
+		return true
+
+	return false
+
+
 static func normalize_prompt_text(text: String) -> String:
 	return text.strip_edges().to_lower()
 
