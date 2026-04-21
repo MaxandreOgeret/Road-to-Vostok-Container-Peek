@@ -42,10 +42,14 @@ jobs:
       - name: Build archives
         run: ./scripts/build_vmz.sh
 
-      - name: Upload artifact
+      - name: Upload VMZ artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ContainerPeek-build
-          path: |
-            ContainerPeek.vmz
-            ContainerPeek.zip
+          name: ContainerPeek.vmz
+          path: ContainerPeek.vmz
+
+      - name: Upload ZIP artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ContainerPeek.zip
+          path: ContainerPeek.zip
