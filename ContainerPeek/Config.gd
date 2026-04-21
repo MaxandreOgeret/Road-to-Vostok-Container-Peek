@@ -122,9 +122,15 @@ func _build_default_config() -> ConfigFile:
 	var xp_skills_detected := _xp_skills_detected()
 	var xp_skills_status := "Detected" if xp_skills_detected else "Not Detected"
 	var xp_skills_tooltip := (
-		"Container Peek will trigger XP & Skills System search XP and scavenger bonuses from the popup window."
+		(
+			"Container Peek will trigger XP & Skills System search XP and scavenger"
+			+ " bonuses from the popup window."
+		)
 		if xp_skills_detected
-		else "XP & Skills System was not detected. This toggle does nothing unless that mod is installed."
+		else (
+			"XP & Skills System was not detected. This toggle does nothing unless"
+			+ " that mod is installed."
+		)
 	)
 	(
 		config
@@ -196,7 +202,10 @@ func _build_default_config() -> ConfigFile:
 			{
 				"name": "Rummage Time / Item",
 				"tooltip":
-				"Seconds each item row takes to appear the first time you inspect a container. Set to 0 to disable.",
+				(
+					"Seconds each item row takes to appear the first time you inspect a"
+					+ " container. Set to 0 to disable."
+				),
 				"default": 0.0,
 				"value": 0.0,
 				"minRange": 0.0,

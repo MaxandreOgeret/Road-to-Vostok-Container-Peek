@@ -173,45 +173,37 @@ func _unhandled_input(event: InputEvent) -> void:
 	if _is_action_event_pressed(event, TRANSFER_ACTION):
 		if _try_transfer_selected():
 			get_viewport().set_input_as_handled()
-		return
-
-	if _is_action_event_pressed(event, TAKE_ALL_ACTION):
+	elif _is_action_event_pressed(event, TAKE_ALL_ACTION):
 		if _try_take_all_selected_container():
 			get_viewport().set_input_as_handled()
-		return
-
-	if _is_action_event_pressed(event, SORT_ACTION):
+	elif _is_action_event_pressed(event, SORT_ACTION):
 		_cycle_sort_mode()
 		get_viewport().set_input_as_handled()
-		return
-
-	if not (event is InputEventMouseButton):
-		return
-
-	var button := event as InputEventMouseButton
-	if not button.pressed:
-		return
-
-	var direction := 0
-	if button.button_index == MOUSE_BUTTON_WHEEL_UP:
-		direction = -1
-	elif button.button_index == MOUSE_BUTTON_WHEEL_DOWN:
-		direction = 1
 	else:
-		return
+		if not (event is InputEventMouseButton):
+			return
 
-	var node := _tracked.get(_current_target_id, null)
-	if not (node is Node):
-		return
+		var button := event as InputEventMouseButton
+		if not button.pressed:
+			return
 
-	var item_count := _visible_item_names.size()
-	if item_count <= 0:
-		return
+		var direction := 0
+		if button.button_index == MOUSE_BUTTON_WHEEL_UP:
+			direction = -1
+		elif button.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+			direction = 1
+		if direction == 0:
+			return
 
-	var current := int(_selection_by_id.get(_current_target_id, 0))
-	_selection_by_id[_current_target_id] = clampi(current + direction, 0, item_count - 1)
-	_last_selection_step = direction
-	get_viewport().set_input_as_handled()
+		var node := _tracked.get(_current_target_id, null)
+		var item_count := _visible_item_names.size()
+		if not (node is Node) or item_count <= 0:
+			return
+
+		var current := int(_selection_by_id.get(_current_target_id, 0))
+		_selection_by_id[_current_target_id] = clampi(current + direction, 0, item_count - 1)
+		_last_selection_step = direction
+		get_viewport().set_input_as_handled()
 
 
 func _is_action_event_pressed(event: InputEvent, action_name: StringName) -> bool:
@@ -1009,7 +1001,7 @@ func _loading_spinner_text() -> String:
 	return LOADING_SPINNER_FRAMES[_loading_animation_phase()]
 
 
-func _update_loading_indicator(total_item_count: int) -> void:
+func _update_loading_indicator(_total_item_count: int) -> void:
 	if _loading_row == null or _loading_label == null or _loading_spinner_label == null:
 		return
 	var loading := _is_rummage_loading(_current_target_id)
@@ -1639,44 +1631,52 @@ func _debug_report_scroll_state(reason: String) -> void:
 		scroll_max = float(v_scroll.max_value)
 		scroll_page = float(v_scroll.page)
 
-	var line := (
-		"[ContainerPeek][Scroll] %s id=%s sel=%d name='%s' visible=%d step=%d window=%d..%d rendered=%d visible_window=%d render_window=%d scroll=%d target_scroll=%d viewport=%.1f selected_top=%.1f selected_bottom=%.1f items_box_y=%.1f items_box_h=%.1f top_spacer=%.1f bottom_spacer=%.1f layout_dirty=%s last_render_sel=%d children=%d first='%s' last='%s' rendered_first=%d rendered_last=%d control='%s' control_index=%d control_role='%s' scroll_max=%.1f scroll_page=%.1f"
-		% [
-			reason,
-			_current_target_id,
-			selected_index,
-			selected_name,
-			_visible_item_names.size(),
-			_last_selection_step,
-			_rendered_row_start,
-			_rendered_row_end,
-			maxi(0, _rendered_row_end - _rendered_row_start),
-			_debug_last_visible_window_size,
-			_debug_last_render_window_size,
-			_item_scroll.scroll_vertical,
-			_debug_last_target_scroll,
-			viewport_height,
-			selected_top,
-			selected_bottom,
-			_items_box.position.y,
-			_items_box.size.y,
-			_debug_last_top_spacer_height,
-			_debug_last_bottom_spacer_height,
-			str(_layout_dirty),
-			_last_render_selection,
-			child_count,
-			first_child_name,
-			last_child_name,
-			first_rendered_index,
-			last_rendered_index,
-			_debug_last_scroll_control_name,
-			_debug_last_scroll_control_index,
-			_debug_last_scroll_control_role,
-			scroll_max,
-			scroll_page,
-		]
-	)
-	_debug_append_scroll_log(line)
+		var line := (
+			(
+				"[ContainerPeek][Scroll] %s id=%s sel=%d name='%s' visible=%d step=%d "
+				+ "window=%d..%d rendered=%d visible_window=%d render_window=%d scroll=%d "
+				+ "target_scroll=%d viewport=%.1f selected_top=%.1f selected_bottom=%.1f "
+				+ "items_box_y=%.1f items_box_h=%.1f top_spacer=%.1f bottom_spacer=%.1f "
+				+ "layout_dirty=%s last_render_sel=%d children=%d first='%s' last='%s' "
+				+ "rendered_first=%d rendered_last=%d control='%s' control_index=%d "
+				+ "control_role='%s' scroll_max=%.1f scroll_page=%.1f"
+			)
+			% [
+				reason,
+				_current_target_id,
+				selected_index,
+				selected_name,
+				_visible_item_names.size(),
+				_last_selection_step,
+				_rendered_row_start,
+				_rendered_row_end,
+				maxi(0, _rendered_row_end - _rendered_row_start),
+				_debug_last_visible_window_size,
+				_debug_last_render_window_size,
+				_item_scroll.scroll_vertical,
+				_debug_last_target_scroll,
+				viewport_height,
+				selected_top,
+				selected_bottom,
+				_items_box.position.y,
+				_items_box.size.y,
+				_debug_last_top_spacer_height,
+				_debug_last_bottom_spacer_height,
+				str(_layout_dirty),
+				_last_render_selection,
+				child_count,
+				first_child_name,
+				last_child_name,
+				first_rendered_index,
+				last_rendered_index,
+				_debug_last_scroll_control_name,
+				_debug_last_scroll_control_index,
+				_debug_last_scroll_control_role,
+				scroll_max,
+				scroll_page,
+			]
+		)
+		_debug_append_scroll_log(line)
 
 	if selected_row == null:
 		_debug_append_scroll_log(
@@ -1689,8 +1689,8 @@ func _debug_report_scroll_state(reason: String) -> void:
 	if selected_top < visible_top or selected_bottom > visible_bottom:
 		_debug_append_scroll_log(
 			(
-				"[ContainerPeek][Scroll] selected row not visible after scroll visible_top=%.1f visible_bottom=%.1f"
-				% [visible_top, visible_bottom]
+				"[ContainerPeek][Scroll] selected row not visible after scroll "
+				+ "visible_top=%.1f visible_bottom=%.1f" % [visible_top, visible_bottom]
 			)
 		)
 
