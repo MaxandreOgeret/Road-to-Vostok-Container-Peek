@@ -4,6 +4,12 @@
   <img src="doc/screenshot.png" alt="Container Peek screenshot" />
 </p>
 
+<p align="center">
+  <a href="https://www.youtube.com/watch?v=dwQ89qOHKWE">
+    <img src="https://img.youtube.com/vi/dwQ89qOHKWE/0.jpg" alt="Mod Showcase" />
+  </a>
+</p>
+
 `Container Peek` is a `Road to Vostok` mod that opens a compact loot window when you look at a container that the game considers interactable.
 
 ## Overview
@@ -12,13 +18,13 @@ The mod follows the game's own interaction logic instead of running a separate c
 
 The loot window shows item names, total displayed weight, and condition in a compact table with a fixed header and a real scrollbar. Rarity colors can be enabled for item names, and the selected row keeps its rarity color instead of switching to a neutral highlight color.
 
-The mod also supports an optional rummaging system for first-time inspection. When rummaging is enabled, grouped item rows are revealed over time with a spinner, a single skeleton placeholder row, and optional audio based on the game's `Craft_Generic` sound. In shelters, rummaging is skipped entirely and the full contents are shown immediately.
+The mod also supports an optional rummaging system for first-time inspection. When rummaging is enabled, grouped item rows are revealed over time with a spinner, a single skeleton placeholder row, and optional audio based on the game's `Craft_Generic` sound. By default, rummaging is skipped in shelters and the full contents are shown immediately there, but that behavior can be changed in Mod Configuration Menu.
 
 Transfer behavior is designed to stay close to the base game. You can transfer the selected entry or take all visible contents, and failed transfers use the same error feedback the game already uses when inventory space runs out.
 
 ## Controls
 
-By default, the mouse wheel moves the selection in the loot list, `F` transfers the selected entry to your inventory, and `R` transfers everything from the current container. These bindings can be changed in Mod Configuration Menu when MCM is installed.
+By default, the mouse wheel moves the selection in the loot list, `F` transfers the selected entry to your inventory, `R` transfers everything from the current container, and `V` cycles sorting between name, rarity, and weight. These bindings can be changed in Mod Configuration Menu when MCM is installed.
 
 ## Behavior Notes
 
@@ -32,22 +38,29 @@ The condition column is only shown for item types that the game itself treats as
 
 ## Configuration
 
-When Mod Configuration Menu is installed, the mod exposes settings for the transfer keybind, the take-all keybind, rarity colors, rummage timing, rummage audio, menu opacity, and the three supported rarity color overrides.
+When Mod Configuration Menu is installed, the mod exposes settings for the transfer keybind, the take-all keybind, the sort keybind, rarity colors, rummage timing, rummage audio, whether rummaging is allowed in shelters, menu opacity, the optional `XP & Skills System` compatibility hook, and the three supported rarity color overrides.
 
-`Rummage Time / Item` controls how long each grouped item row takes to appear during first inspection, and a value of `0` disables rummaging completely. `Rummage Audio` enables or disables the rummaging sound effect during reveal. `Menu Opacity` changes the background opacity of the panel without affecting text readability.
+`Rummage Time / Item` controls how long each grouped item row takes to appear during first inspection, and a value of `0` disables rummaging completely. `Rummage Audio` enables or disables the rummaging sound effect during reveal. `Rummage In Shelter` controls whether the same delay is applied while you are in the shelter. `Menu Opacity` changes the background opacity of the panel without affecting text readability. `XP & Skills Compat` lets popup inspection trigger that mod's search XP and scavenger bonus path without opening the native container UI.
+
+## Compatibility
+
+- `XP & Skills System` (`ModWorkshop #55940`): supported through the optional `XP & Skills Compat` setting. When enabled, popup inspection can trigger that mod's container XP and scavenger bonus path without opening the native container UI. When rummaging is enabled, the compatibility trigger waits until rummaging finishes.
+- `Mod Configuration Menu` (`ModWorkshop #53713`): optional. Required only for rebinding controls and changing settings in game.
+
+`Container Peek` does not override `Interface.gd`, `Character.gd`, or `LootContainer.gd`. Its normal runtime model is autoload-only, with optional compatibility logic isolated under `ContainerPeek/Compat/`.
 
 ## Repository Layout
 
-The packaged mod consists of `mod.txt` and the `ContainerPeek/` directory. The runtime logic is split across `ContainerPeek/Main.gd`, which handles scene lifecycle, UI, targeting, and transfer flow; `ContainerPeek/Config.gd`, which registers the MCM settings and input actions; `ContainerPeek/ConfigSupport.gd`, which provides runtime configuration helpers; and `ContainerPeek/ItemSupport.gd`, which handles item summaries, rarity, weight, condition, and selection helpers.
+The packaged mod consists of `mod.txt` and the `ContainerPeek/` directory. The runtime logic is split across `ContainerPeek/Main.gd`, which handles scene lifecycle, state, and transfer flow; `ContainerPeek/PanelSupport.gd`, which builds and styles the peek UI; `ContainerPeek/TargetSupport.gd`, which handles target and HUD prompt helpers; `ContainerPeek/Config.gd`, which registers the MCM settings and input actions; `ContainerPeek/ConfigSupport.gd`, which provides runtime configuration helpers; `ContainerPeek/ItemSupport.gd`, which handles item summaries, rarity, weight, condition, and selection helpers; and `ContainerPeek/Compat/XPSkillsCompat.gd`, which contains the optional XP & Skills integration.
 
-The repository also includes [doc/game-sync.md](/home/mackou/project/vostok_lootmenu/doc/game-sync.md:1), which documents the parts of the mod that intentionally mirror decompiled game logic and should be reviewed after a game update.
+The repository also includes [doc/game-sync.md](/home/mackou/projects/vostok_lootmenu/doc/game-sync.md:1), which documents the parts of the mod that intentionally mirror decompiled game logic and should be reviewed after a game update.
 
 ## Build
 
 Create the mod archive from the repository root with the following command:
 
 ```bash
-zip -r ContainerPeek.zip mod.txt ContainerPeek
+zip -r ContainerPeek.zip mod.txt README.md DESCRIPTION.md ContainerPeek doc
 ```
 
 The root of the archive must contain `mod.txt` and the `ContainerPeek/` directory.
@@ -58,7 +71,7 @@ Copy `ContainerPeek.zip` into the game's mod folder at `~/.steam/debian-installa
 
 ## Requirements
 
-The mod requires `Road to Vostok` and the community mod loader format used by the game. `Mod Configuration Menu` is optional, but it is required if you want to change bindings or adjust the rummage, audio, opacity, and rarity color settings in game.
+The mod requires `Road to Vostok` and the community mod loader format used by the game. `Mod Configuration Menu` is optional, but it is required if you want to change bindings or adjust the rummage, shelter rummaging, audio, opacity, and rarity color settings in game.
 
 ## References
 
