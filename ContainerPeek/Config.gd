@@ -130,7 +130,7 @@ func _build_default_config() -> ConfigFile:
 			"Keycode",
 			String(TRANSFER_ACTION),
 			{
-				"name": "Transfer Selected",
+				"name": "Take Selected",
 				"tooltip": "Move the selected item to inventory.",
 				"default": KEY_F,
 				"default_type": "Key",
@@ -286,8 +286,8 @@ func _build_default_config() -> ConfigFile:
 			{
 				"name": "Rare Color",
 				"tooltip": "Preview list color for rare items.",
-				"default": Color(0.45, 0.78, 1.0, 0.95),
-				"value": Color(0.45, 0.78, 1.0, 0.95),
+				"default": Color.RED,
+				"value": Color.RED,
 				"allowAlpha": true,
 				"menu_pos": 70,
 			}
@@ -301,8 +301,8 @@ func _build_default_config() -> ConfigFile:
 			{
 				"name": "Legendary Color",
 				"tooltip": "Preview list color for legendary items.",
-				"default": Color(1.0, 0.75, 0.28, 0.95),
-				"value": Color(1.0, 0.75, 0.28, 0.95),
+				"default": Color.DARK_VIOLET,
+				"value": Color.DARK_VIOLET,
 				"allowAlpha": true,
 				"menu_pos": 80,
 			}

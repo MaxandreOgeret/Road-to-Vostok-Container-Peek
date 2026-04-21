@@ -322,9 +322,9 @@ static func rarity_color(rarity: String, enabled: bool, custom_colors: Dictionar
 	# base tooltip rarity colors from res://Scripts/Tooltip.gd.
 	match normalize_rarity_value(rarity).to_lower():
 		"legendary":
-			return rarity_color_override(custom_colors, "legendary", Color(1.0, 0.75, 0.28, 0.95))
+			return rarity_color_override(custom_colors, "legendary", Color.DARK_VIOLET)
 		"rare":
-			return rarity_color_override(custom_colors, "rare", Color(0.45, 0.78, 1.0, 0.95))
+			return rarity_color_override(custom_colors, "rare", Color.RED)
 		_:
 			return rarity_color_override(custom_colors, "common", Color(1.0, 1.0, 1.0, 0.78))
 

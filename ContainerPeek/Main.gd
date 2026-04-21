@@ -338,7 +338,7 @@ func _load_ui_assets() -> void:
 
 func _hint_text() -> String:
 	return (
-		"Wheel: Scroll   %s: Transfer   %s: Take All   %s: Sort (%s)"
+		"Wheel: Scroll   %s: Take   %s: Take All   %s: Sort (%s)"
 		% [
 			ConfigSupport.binding_label(self, TRANSFER_ACTION),
 			ConfigSupport.binding_label(self, TAKE_ALL_ACTION),
@@ -1733,10 +1733,9 @@ func _rarity_color_map() -> Dictionary:
 	return {
 		"common":
 		ConfigSupport.color_setting(self, RARITY_COMMON_COLOR_KEY, Color(1.0, 1.0, 1.0, 0.78)),
-		"rare":
-		ConfigSupport.color_setting(self, RARITY_RARE_COLOR_KEY, Color(0.45, 0.78, 1.0, 0.95)),
+		"rare": ConfigSupport.color_setting(self, RARITY_RARE_COLOR_KEY, Color.RED),
 		"legendary":
-		ConfigSupport.color_setting(self, RARITY_LEGENDARY_COLOR_KEY, Color(1.0, 0.75, 0.28, 0.95)),
+		ConfigSupport.color_setting(self, RARITY_LEGENDARY_COLOR_KEY, Color.DARK_VIOLET),
 	}
 
 
