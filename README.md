@@ -57,17 +57,27 @@ The repository also includes [doc/game-sync.md](/home/mackou/projects/vostok_loo
 
 ## Build
 
-Create the mod archive from the repository root with the following command:
+Create the mod archive from the repository root with:
 
 ```bash
-zip -r ContainerPeek.zip mod.txt README.md DESCRIPTION.md ContainerPeek doc
+./scripts/build_vmz.sh
 ```
 
-The root of the archive must contain `mod.txt` and the `ContainerPeek/` directory.
+That produces `ContainerPeek.vmz`, which is a regular zip archive with the `.vmz` extension. The root of the archive contains `mod.txt` and the `ContainerPeek/` directory.
+
+The build also produces `ContainerPeek.zip`, which is a regular zip file that contains the `.vmz` archive for distribution on sites that expect `.zip` uploads.
+
+## CI
+
+GitHub Actions runs linting and build checks on pushes and pull requests:
+
+- `./scripts/lint.sh` runs `gdlint` and `gdformat --check`
+- `./scripts/build_vmz.sh` builds `ContainerPeek.vmz` and `ContainerPeek.zip`
+- the workflow uploads both built archives as artifacts
 
 ## Installation
 
-Copy `ContainerPeek.zip` into the game's mod folder at `~/.steam/debian-installation/steamapps/common/Road to Vostok/mods/`, then restart the game completely.
+Copy `ContainerPeek.vmz` into the game's mod folder at `~/.steam/debian-installation/steamapps/common/Road to Vostok/mods/`, then restart the game completely.
 
 ## Requirements
 

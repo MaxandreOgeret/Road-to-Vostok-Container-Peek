@@ -1,0 +1,5 @@
+max-file-lines: 2500
+max-returns: 10
+disable:
+  - function-name
+  - class-variable-name
