@@ -33,6 +33,7 @@ const TAKE_ALL_ACTION := &"container_peek_take_all"
 const SORT_ACTION := &"container_peek_sort"
 const RUMMAGE_TIME_KEY := "rummage_seconds_per_item"
 const RUMMAGE_AUDIO_KEY := "rummage_audio"
+const ENABLE_IN_SHELTER_KEY := "enable_in_shelter"
 const RUMMAGE_IN_SHELTER_KEY := "rummage_in_shelter"
 const PANEL_OPACITY_KEY := "panel_opacity"
 const XP_SKILLS_COMPAT_KEY := "xp_skills_compat"
@@ -146,6 +147,9 @@ func _process(delta: float) -> void:
 		return
 
 	if _should_hide():
+		_hide_panel()
+		return
+	if _shelter_disables_mod():
 		_hide_panel()
 		return
 
@@ -813,7 +817,15 @@ func _rummage_seconds_per_item() -> float:
 	return maxf(0.0, ConfigSupport.float_setting(self, RUMMAGE_TIME_KEY, 0.0))
 
 
+func _shelter_disables_mod() -> bool:
+	return _in_shelter() and not ConfigSupport.bool_setting(self, ENABLE_IN_SHELTER_KEY, true)
+
+
 func _shelter_bypasses_rummaging() -> bool:
+	return _in_shelter() and not ConfigSupport.bool_setting(self, RUMMAGE_IN_SHELTER_KEY, false)
+
+
+func _in_shelter() -> bool:
 	if not ResourceLoader.exists(GAME_DATA_RES):
 		return false
 	if _game_data == null:
@@ -822,11 +834,7 @@ func _shelter_bypasses_rummaging() -> bool:
 		return false
 
 	var shelter: Variant = _game_data.get("shelter")
-	return (
-		shelter != null
-		and bool(shelter)
-		and not ConfigSupport.bool_setting(self, RUMMAGE_IN_SHELTER_KEY, false)
-	)
+	return shelter != null and bool(shelter)
 
 
 func _ensure_rummage_sound_playing() -> void:

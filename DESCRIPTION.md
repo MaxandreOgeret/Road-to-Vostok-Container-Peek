@@ -1,58 +1,75 @@
-# Container Peek
+[center][size=6][b]Container Peek[/b][/size][/center]
 
-`Container Peek` lets you check a container's contents the moment you aim at it, without opening the full inventory screen first.
+[center]Container Peek lets you check a container's contents the moment you aim at it, without opening the full inventory screen first.[/center]
 
-Instead of stopping to open every crate, drawer, freezer, shelf, or cabinet just to see whether it is worth looting, you get a compact in-world loot window that appears only when the game already considers that container interactable. The result is faster looting, less menu friction, and better moment-to-moment flow.
+[center][url=https://www.youtube.com/watch?v=dwQ89qOHKWE][img]https://img.youtube.com/vi/dwQ89qOHKWE/0.jpg[/img][/url][/center]
 
-## Showcase
+[hr][/hr]
+[size=5][b]What It Does[/b][/size]
 
-[![Mod Showcase](https://img.youtube.com/vi/dwQ89qOHKWE/0.jpg)](https://www.youtube.com/watch?v=dwQ89qOHKWE)
+Instead of stopping to open every crate, drawer, freezer, shelf, or cabinet just to see whether it is worth looting, you get a compact loot window that appears only when the game already considers that container interactable.
 
-## What It Adds
+The goal is simple: faster looting, less menu friction, and better flow.
 
-- A compact loot preview window for containers in range
-- A fixed table header with a real scrollable list
-- Weight and condition columns in the preview
-- Mouse wheel row selection
-- `F` to transfer the selected item
-- `R` to take all
-- `V` to cycle sorting by name, rarity, and weight
-- Optional rarity-colored item names
-- Optional rummaging behavior for slower first inspection
+[hr][/hr]
+[size=5][b]Features[/b][/size]
 
-## Why Use It
+[list]
+[*]Compact loot preview window for containers in range
+[*]Fixed table header with a real scrollable list
+[*]Weight and condition columns
+[*]Mouse wheel row selection
+[*][b]F[/b] to take the selected item
+[*][b]R[/b] to take all
+[*][b]V[/b] to cycle sorting by name, rarity, and weight
+[*]Optional rarity-colored item names
+[*]Optional rummaging behavior for slower first inspection
+[*]Optional compatibility with XP & Skills System
+[/list]
 
-The base loop often forces you to fully open a container before you can decide whether it is even worth touching. `Container Peek` removes that dead time while staying close to the game's own interaction rules and visual style.
+[hr][/hr]
+[size=5][b]Why Use It[/b][/size]
+
+The base loot loop often forces you to fully open a container before you can decide whether it is even worth touching. Container Peek removes that dead time while staying close to the game's own interaction rules and visual style.
 
 It is meant to feel like a faster extension of the existing loot flow, not a separate overlay mod fighting the game.
 
-## Configuration
+[hr][/hr]
+[size=5][b]Configuration[/b][/size]
 
-If you use `Mod Configuration Menu`, you can:
+If you use Mod Configuration Menu, you can:
 
-- Rebind transfer, take-all, and sort keys
-- Enable or disable rarity colors
-- Tune rummaging delay and audio
-- Control whether rummaging applies in the shelter
-- Adjust panel opacity
-- Enable optional compatibility with `XP & Skills System`
+[list]
+[*]Rebind take, take-all, and sort keys
+[*]Enable or disable rarity colors
+[*]Tune rummaging delay and audio
+[*]Control whether the mod is enabled in the shelter
+[*]Control whether rummaging applies in the shelter
+[*]Adjust panel opacity
+[*]Enable optional compatibility with XP & Skills System
+[/list]
 
-## Compatibility
+[hr][/hr]
+[size=5][b]Compatibility[/b][/size]
 
-- Works with `Mod Configuration Menu`
-- Includes an optional compatibility hook for `XP & Skills System`, so popup inspection can trigger that mod's container XP and scavenger bonus path
+[list]
+[*]Works with Mod Configuration Menu
+[*]Includes an optional compatibility hook for XP & Skills System, so popup inspection can trigger that mod's container XP and scavenger bonus path
+[/list]
 
-## Repository
+[hr][/hr]
+[size=5][b]Source Code[/b][/size]
 
-Source code:
+[url=https://github.com/MaxandreOgeret/Road-to-Vostok-Container-Peek]https://github.com/MaxandreOgeret/Road-to-Vostok-Container-Peek[/url]
 
-https://github.com/MaxandreOgeret/Road-to-Vostok-Container-Peek
+[hr][/hr]
+[size=5][b]Audio Sources[/b][/size]
 
-## Audio Sources
+Custom corpse rummaging audio sources:
 
-Custom rummaging audio sources:
-
-- https://pixabay.com/sound-effects/film-special-effects-jackethoodie-zipper-419038/
-- https://pixabay.com/sound-effects/film-special-effects-zipper-sound-effect-336780/
-- https://pixabay.com/sound-effects/film-special-effects-zipper-95036/
-- https://pixabay.com/sound-effects/film-special-effects-woven-nylon-bag-rustling-and-unzipping-62127/
+[list]
+[*][url]https://pixabay.com/sound-effects/film-special-effects-jackethoodie-zipper-419038/[/url]
+[*][url]https://pixabay.com/sound-effects/film-special-effects-zipper-sound-effect-336780/[/url]
+[*][url]https://pixabay.com/sound-effects/film-special-effects-zipper-95036/[/url]
+[*][url]https://pixabay.com/sound-effects/film-special-effects-woven-nylon-bag-rustling-and-unzipping-62127/[/url]
+[/list]

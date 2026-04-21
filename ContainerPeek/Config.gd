@@ -15,6 +15,7 @@ const SORT_ACTION := &"container_peek_sort"
 const RARITY_COLORS_KEY := "rarity_colors"
 const RUMMAGE_TIME_KEY := "rummage_seconds_per_item"
 const RUMMAGE_AUDIO_KEY := "rummage_audio"
+const ENABLE_IN_SHELTER_KEY := "enable_in_shelter"
 const RUMMAGE_IN_SHELTER_KEY := "rummage_in_shelter"
 const PANEL_OPACITY_KEY := "panel_opacity"
 const XP_SKILLS_COMPAT_KEY := "xp_skills_compat"
@@ -226,6 +227,20 @@ func _build_default_config() -> ConfigFile:
 				"default": true,
 				"value": true,
 				"menu_pos": 42,
+			}
+		)
+	)
+	(
+		config
+		. set_value(
+			"Bool",
+			ENABLE_IN_SHELTER_KEY,
+			{
+				"name": "Enable In Shelter",
+				"tooltip": "Allow the peek menu to appear while you are in the shelter.",
+				"default": true,
+				"value": true,
+				"menu_pos": 43,
 			}
 		)
 	)
