@@ -222,8 +222,8 @@ func _build_default_config() -> ConfigFile:
 					"Seconds each item row takes to appear the first time you inspect a"
 					+ " container. Set to 0 to disable."
 				),
-				"default": 0.0,
-				"value": 0.0,
+				"default": 0.5,
+				"value": 0.5,
 				"minRange": 0.0,
 				"maxRange": 2.0,
 				"step": 0.05,

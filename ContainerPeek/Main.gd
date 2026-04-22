@@ -930,7 +930,7 @@ func _rummage_progress_units(total_item_count: int) -> int:
 func _rummage_seconds_per_item() -> float:
 	if _shelter_bypasses_rummaging():
 		return 0.0
-	return maxf(0.0, ConfigSupport.float_setting(self, RUMMAGE_TIME_KEY, 0.0))
+	return maxf(0.0, ConfigSupport.float_setting(self, RUMMAGE_TIME_KEY, 0.5))
 
 
 func _shelter_disables_mod() -> bool:
