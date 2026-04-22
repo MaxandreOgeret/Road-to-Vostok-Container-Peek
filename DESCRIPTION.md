@@ -1,84 +1,66 @@
-[center][size=6][b]Container Peek[/b][/size][/center]
+# Container Peek
 
-[center]Container Peek lets you check a container's contents the moment you aim at it, without opening the full inventory screen first.[/center]
+Container Peek lets you check a container's contents the moment you aim at it, without opening the full inventory screen first.
 
-[center][url=https://www.youtube.com/watch?v=dwQ89qOHKWE][img]https://img.youtube.com/vi/dwQ89qOHKWE/0.jpg[/img][/url][/center]
+[![Mod Showcase](https://img.youtube.com/vi/dwQ89qOHKWE/0.jpg)](https://www.youtube.com/watch?v=dwQ89qOHKWE)
 
-[hr][/hr]
-[size=5][b]What It Does[/b][/size]
+## What It Does
 
 Instead of stopping to open every crate, drawer, freezer, shelf, or cabinet just to see whether it is worth looting, you get a compact loot window that appears only when the game already considers that container interactable.
 
 The goal is simple: faster looting, less menu friction, and better flow.
 
-[hr][/hr]
-[size=5][b]Features[/b][/size]
+## Features
 
-[list]
-[*]Compact loot preview window for containers in range
-[*]Fixed table header with a real scrollable list
-[*]Weight and condition columns
-[*]Mouse wheel row selection
-[*][b]F[/b] to take the selected item
-[*][b]R[/b] to take all
-[*][b]V[/b] to cycle sorting by name, rarity, and weight
-[*]Optional rarity-colored item names
-[*]Optional rummaging behavior for slower first inspection
-[*]Optional compatibility with XP & Skills System
-[/list]
+- Compact loot preview window for containers in range
+- Fixed table header with a real scrollable list
+- Weight and condition columns
+- Mouse wheel row selection
+- `F` to take the selected item
+- `R` to take all
+- `V` to cycle sorting by name, rarity, and weight
+- Optional rarity-colored item names
+- Optional rummaging behavior for slower first inspection
+- Optional compatibility with XP & Skills System
 
-[hr][/hr]
-[size=5][b]Why Use It[/b][/size]
+## Why Use It
 
 The base loot loop often forces you to fully open a container before you can decide whether it is even worth touching. Container Peek removes that dead time while staying close to the game's own interaction rules and visual style.
 
 It is meant to feel like a faster extension of the existing loot flow, not a separate overlay mod fighting the game.
 
-[hr][/hr]
-[size=5][b]Configuration[/b][/size]
+## Configuration
 
 If you use Mod Configuration Menu, you can:
 
-[list]
-[*]Rebind take, take-all, and sort keys
-[*]Enable or disable rarity colors
-[*]Tune rummaging delay and audio
-[*]Control whether the mod is enabled in the shelter
-[*]Control whether rummaging applies in the shelter
-[*]Adjust panel opacity
-[*]Enable optional compatibility with XP & Skills System
-[/list]
+- Rebind take, take-all, and sort keys
+- Enable or disable rarity colors
+- Tune rummaging delay and audio
+- Control whether the mod is enabled in the shelter
+- Control whether rummaging applies in the shelter
+- Adjust panel opacity
+- Enable optional compatibility with XP & Skills System
 
-[hr][/hr]
-[size=5][b]Compatibility[/b][/size]
+## Compatibility
 
-[list]
-[*]Works with Mod Configuration Menu
-[*]Includes an optional compatibility hook for XP & Skills System, so popup inspection can trigger that mod's container XP and scavenger bonus path
-[/list]
+- Works with Mod Configuration Menu
+- Includes an optional compatibility hook for XP & Skills System, so popup inspection can trigger that mod's container XP and scavenger bonus path
 
-[hr][/hr]
-[size=5][b]Source Code[/b][/size]
+## Source Code
 
-[url=https://github.com/MaxandreOgeret/Road-to-Vostok-Container-Peek]https://github.com/MaxandreOgeret/Road-to-Vostok-Container-Peek[/url]
+https://github.com/MaxandreOgeret/Road-to-Vostok-Container-Peek
 
-[hr][/hr]
-[size=5][b]Audio Sources[/b][/size]
+## Audio Sources
 
 Custom corpse rummaging audio sources:
 
-[list]
-[*][url]https://pixabay.com/sound-effects/film-special-effects-jackethoodie-zipper-419038/[/url]
-[*][url]https://pixabay.com/sound-effects/film-special-effects-zipper-sound-effect-336780/[/url]
-[*][url]https://pixabay.com/sound-effects/film-special-effects-zipper-95036/[/url]
-[*][url]https://pixabay.com/sound-effects/film-special-effects-woven-nylon-bag-rustling-and-unzipping-62127/[/url]
-[/list]
+- https://pixabay.com/sound-effects/film-special-effects-jackethoodie-zipper-419038/
+- https://pixabay.com/sound-effects/film-special-effects-zipper-sound-effect-336780/
+- https://pixabay.com/sound-effects/film-special-effects-zipper-95036/
+- https://pixabay.com/sound-effects/film-special-effects-woven-nylon-bag-rustling-and-unzipping-62127/
 
-[hr][/hr]
-[size=5][b]Third-Party Asset Notices[/b][/size]
+## Third-Party Asset Notices
 
-[list]
-[*]The bundled corpse rummaging MP3 files are third-party Pixabay assets and are not covered by the GPL license for the mod code.
-[*]The bundled ammo icon `ammo.svg` is a third-party asset and is not covered by the GPL license for the mod code.
-[*]Ammo icon attribution: Bullet by Andhika Pramanto from Noun Project (CC BY 3.0)
-[/list]
+- The bundled corpse rummaging MP3 files are third-party Pixabay assets and are not covered by the GPL license for the mod code.
+- The bundled ammo icon `ammo.svg` is a third-party asset and is not covered by the GPL license for the mod code.
+- Ammo icon attribution: Bullet by Andhika Pramanto from Noun Project (CC BY 3.0)
