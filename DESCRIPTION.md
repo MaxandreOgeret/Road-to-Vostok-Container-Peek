@@ -73,3 +73,12 @@ Custom corpse rummaging audio sources:
 [*][url]https://pixabay.com/sound-effects/film-special-effects-zipper-95036/[/url]
 [*][url]https://pixabay.com/sound-effects/film-special-effects-woven-nylon-bag-rustling-and-unzipping-62127/[/url]
 [/list]
+
+[hr][/hr]
+[size=5][b]Third-Party Asset Notices[/b][/size]
+
+[list]
+[*]The bundled corpse rummaging MP3 files are third-party Pixabay assets and are not covered by the GPL license for the mod code.
+[*]The bundled ammo icon `ammo.svg` is a third-party asset and is not covered by the GPL license for the mod code.
+[*]Ammo icon attribution: Bullet by Andhika Pramanto from Noun Project (CC BY 3.0)
+[/list]
