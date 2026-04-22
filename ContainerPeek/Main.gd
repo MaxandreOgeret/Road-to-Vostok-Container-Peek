@@ -94,6 +94,7 @@ var _cached_reveal_names: Array = []
 var _cached_item_col_width := -1.0
 var _bootstrapped := false
 var _sort_mode := SORT_MODE_NAME
+var _manual_navigation := false
 var _pending_scroll_request := SCROLL_REQUEST_NONE
 var _last_selection_step := 0
 var _rendered_row_start := -1
@@ -222,7 +223,11 @@ func _unhandled_input(event: InputEvent) -> void:
 			return
 
 		var current := int(_selection_by_id.get(_current_target_id, 0))
-		_selection_by_id[_current_target_id] = clampi(current + direction, 0, item_count - 1)
+		var next_selection := clampi(current + direction, 0, item_count - 1)
+		if next_selection == current:
+			return
+		_selection_by_id[_current_target_id] = next_selection
+		_manual_navigation = true
 		_last_selection_step = direction
 		get_viewport().set_input_as_handled()
 
@@ -573,6 +578,7 @@ func _teardown_runtime() -> void:
 	_last_title_text = ""
 	_last_header_gutter = -1
 	_last_icons_enabled = true
+	_manual_navigation = false
 	_layout_dirty = true
 
 
@@ -583,6 +589,7 @@ func _hide_panel() -> void:
 	_rendered_placeholder_row = null
 	_placeholder_blocks.clear()
 	_pending_scroll_request = SCROLL_REQUEST_NONE
+	_manual_navigation = false
 	_rendered_row_start = -1
 	_rendered_row_end = -1
 	_stop_rummage_sound()
@@ -1322,7 +1329,7 @@ func _render_item_rows(node: Node, summaries: Dictionary) -> void:
 	_set_item_column_width(item_col_width)
 	var revealed_count := _revealed_item_count(node.get_instance_id(), reveal_names.size())
 	var previous_selected_name := ""
-	if node.get_instance_id() == _current_target_id:
+	if _manual_navigation and node.get_instance_id() == _current_target_id:
 		var previous_selected_index := int(_selection_by_id.get(node.get_instance_id(), -1))
 		if previous_selected_index >= 0 and previous_selected_index < _visible_item_names.size():
 			previous_selected_name = str(_visible_item_names[previous_selected_index])
@@ -1335,7 +1342,9 @@ func _render_item_rows(node: Node, summaries: Dictionary) -> void:
 	_visible_item_names = visible_names
 
 	var selected_index := int(_selection_by_id.get(node.get_instance_id(), 0))
-	if not previous_selected_name.is_empty():
+	if not _manual_navigation:
+		selected_index = 0
+	elif not previous_selected_name.is_empty():
 		var preserved_index := visible_names.find(previous_selected_name)
 		if preserved_index >= 0:
 			selected_index = preserved_index
@@ -1430,6 +1439,11 @@ func _render_item_rows(node: Node, summaries: Dictionary) -> void:
 		_debug_queue_scroll_report("render-top")
 		return
 
+	if not _manual_navigation:
+		_queue_scroll_top()
+		_debug_queue_scroll_report("render-pinned-top")
+		return
+
 	if selected_row != null:
 		var selection_at_bottom := (
 			_rendered_placeholder_row != null
@@ -1455,6 +1469,7 @@ func _reset_view_for_target_change(target_id: int) -> void:
 	_selection_by_id[target_id] = 0
 	_visible_item_names.clear()
 	_pending_scroll_request = SCROLL_REQUEST_TOP
+	_manual_navigation = false
 	_last_selection_step = 0
 	_rendered_row_start = -1
 	_rendered_row_end = -1
@@ -1465,6 +1480,7 @@ func _reset_view_for_sort_change() -> void:
 		_selection_by_id[_current_target_id] = 0
 	_visible_item_names.clear()
 	_pending_scroll_request = SCROLL_REQUEST_TOP
+	_manual_navigation = false
 	_last_selection_step = 0
 	_rendered_row_start = -1
 	_rendered_row_end = -1
@@ -1628,6 +1644,11 @@ func _refresh_rendered_selection(container_id: int) -> void:
 		PanelSupport.apply_item_row_selection(
 			selected_row, true, _row_style(true), _row_style(false)
 		)
+
+	if not _manual_navigation:
+		_queue_scroll_top()
+		_debug_queue_scroll_report("selection-pinned-top")
+		return
 
 	if _rendered_placeholder_row != null and is_instance_valid(_rendered_placeholder_row):
 		var selection_at_bottom := selected_index == _visible_item_names.size() - 1
