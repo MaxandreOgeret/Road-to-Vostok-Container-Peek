@@ -88,7 +88,9 @@ var _cached_summaries: Dictionary = {}
 var _cached_sorted_target_id := -1
 var _cached_sorted_sort_mode := -1
 var _cached_sorted_signature := ""
-var _cached_sorted_names: Array = []
+var _cached_reveal_target_id := -1
+var _cached_reveal_signature := ""
+var _cached_reveal_names: Array = []
 var _cached_item_col_width := -1.0
 var _bootstrapped := false
 var _sort_mode := SORT_MODE_NAME
@@ -843,7 +845,9 @@ func _invalidate_summary_cache() -> void:
 	_cached_sorted_target_id = -1
 	_cached_sorted_sort_mode = -1
 	_cached_sorted_signature = ""
-	_cached_sorted_names.clear()
+	_cached_reveal_target_id = -1
+	_cached_reveal_signature = ""
+	_cached_reveal_names.clear()
 	_cached_item_col_width = -1.0
 
 
@@ -1313,24 +1317,39 @@ func _render_item_rows(node: Node, summaries: Dictionary) -> void:
 		)
 		return
 
-	var names := _sorted_item_names(summaries)
+	var reveal_names := _revealed_name_order(summaries)
 	var item_col_width := _item_name_column_width(summaries)
 	_set_item_column_width(item_col_width)
-	var revealed_count := _revealed_item_count(node.get_instance_id(), names.size())
+	var revealed_count := _revealed_item_count(node.get_instance_id(), reveal_names.size())
+	var previous_selected_name := ""
+	if node.get_instance_id() == _current_target_id:
+		var previous_selected_index := int(_selection_by_id.get(node.get_instance_id(), -1))
+		if previous_selected_index >= 0 and previous_selected_index < _visible_item_names.size():
+			previous_selected_name = str(_visible_item_names[previous_selected_index])
 	var visible_names: Array = []
 	for i in range(revealed_count):
-		visible_names.append(names[i])
+		visible_names.append(reveal_names[i])
+	visible_names.sort_custom(
+		func(a: Variant, b: Variant) -> bool: return _item_name_less(str(a), str(b), summaries)
+	)
 	_visible_item_names = visible_names
 
 	var selected_index := int(_selection_by_id.get(node.get_instance_id(), 0))
-	selected_index = clampi(selected_index, 0, maxi(visible_names.size() - 1, 0))
+	if not previous_selected_name.is_empty():
+		var preserved_index := visible_names.find(previous_selected_name)
+		if preserved_index >= 0:
+			selected_index = preserved_index
+		else:
+			selected_index = clampi(selected_index, 0, maxi(visible_names.size() - 1, 0))
+	else:
+		selected_index = clampi(selected_index, 0, maxi(visible_names.size() - 1, 0))
 	_selection_by_id[node.get_instance_id()] = selected_index
 	var window := _row_window_range(visible_names.size(), selected_index)
 	var window_start := int(window.get("start", 0))
 	var window_end := int(window.get("end", 0))
 	_debug_last_visible_window_size = int(window.get("visible_window_size", 0))
 	_debug_last_render_window_size = int(window.get("render_window_size", 0))
-	var has_placeholder := visible_names.size() < names.size()
+	var has_placeholder := visible_names.size() < reveal_names.size()
 	var render_placeholder := _render_placeholder_for_window(
 		visible_names.size(), has_placeholder, window_end
 	)
@@ -1473,23 +1492,20 @@ func _sort_mode_label() -> String:
 			return "Name"
 
 
-func _sorted_item_names(summaries: Dictionary) -> Array:
+func _revealed_name_order(summaries: Dictionary) -> Array:
 	if (
-		_cached_sorted_target_id == _current_target_id
-		and _cached_sorted_sort_mode == _sort_mode
-		and _cached_sorted_signature == _cached_summary_signature
+		_cached_reveal_target_id == _current_target_id
+		and _cached_reveal_signature == _cached_summary_signature
 	):
-		return _cached_sorted_names
+		return _cached_reveal_names
 
 	var names: Array = summaries.keys()
-	names.sort_custom(
-		func(a: Variant, b: Variant) -> bool: return _item_name_less(str(a), str(b), summaries)
-	)
-	_cached_sorted_target_id = _current_target_id
-	_cached_sorted_sort_mode = _sort_mode
-	_cached_sorted_signature = _cached_summary_signature
-	_cached_sorted_names = names
-	return _cached_sorted_names
+	names.sort_custom(func(a: Variant, b: Variant) -> bool: return str(a).nocasecmp_to(str(b)) < 0)
+	names.shuffle()
+	_cached_reveal_target_id = _current_target_id
+	_cached_reveal_signature = _cached_summary_signature
+	_cached_reveal_names = names
+	return _cached_reveal_names
 
 
 func _item_name_less(a: String, b: String, summaries: Dictionary) -> bool:

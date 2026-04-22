@@ -101,7 +101,9 @@ static func make_header_row(
 	)
 	row.add_child(item_label)
 	row.add_child(_label(ui_theme, "Weight", 11, dim, weight_col_width, HORIZONTAL_ALIGNMENT_RIGHT))
-	row.add_child(_label(ui_theme, "Cond.", 11, dim, condition_col_width, HORIZONTAL_ALIGNMENT_RIGHT))
+	row.add_child(
+		_label(ui_theme, "Cond.", 11, dim, condition_col_width, HORIZONTAL_ALIGNMENT_RIGHT)
+	)
 
 	return {"row": row, "item_label": item_label}
 
@@ -121,8 +123,10 @@ static func make_row(
 	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_theme_stylebox_override("panel", make_row_style(ui_tile, 2, selected))
 
-	var color := Color(1.0, 0.87, 0.55, 1.0) if status else (
-		Color(1.0, 1.0, 1.0, 1.0) if selected else Color(1.0, 1.0, 1.0, 0.78)
+	var color := (
+		Color(1.0, 0.87, 0.55, 1.0)
+		if status
+		else (Color(1.0, 1.0, 1.0, 1.0) if selected else Color(1.0, 1.0, 1.0, 0.78))
 	)
 	row.add_child(
 		_label(
