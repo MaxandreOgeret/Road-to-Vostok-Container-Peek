@@ -53,7 +53,7 @@ When Mod Configuration Menu is installed, the mod exposes settings for the trans
 
 The packaged mod consists of `mod.txt` and the `ContainerPeek/` directory. The runtime logic is split across `ContainerPeek/Main.gd`, which handles scene lifecycle, state, and transfer flow; `ContainerPeek/PanelSupport.gd`, which builds and styles the peek UI; `ContainerPeek/TargetSupport.gd`, which handles target and HUD prompt helpers; `ContainerPeek/Config.gd`, which registers the MCM settings and input actions; `ContainerPeek/ConfigSupport.gd`, which provides runtime configuration helpers; `ContainerPeek/ItemSupport.gd`, which handles item summaries, rarity, weight, condition, and selection helpers; and `ContainerPeek/Compat/XPSkillsCompat.gd`, which contains the optional XP & Skills integration.
 
-The repository also includes [doc/game-sync.md](/home/mackou/projects/vostok_lootmenu/doc/game-sync.md:1), which documents the parts of the mod that intentionally mirror decompiled game logic and should be reviewed after a game update.
+The repository also includes [doc/game-sync.md](doc/game-sync.md), which documents the parts of the mod that intentionally mirror decompiled game logic and should be reviewed after a game update.
 
 ## Build
 
@@ -85,7 +85,7 @@ The mod requires `Road to Vostok` and the community mod loader format used by th
 
 ## Licensing Note
 
-The repository code is GPL-3.0, but the bundled MP3 files under `ContainerPeek/audio/` are explicitly excluded from that GPL grant. See [NOTICE](/home/mackou/projects/vostok_lootmenu/NOTICE:1) for the asset carve-out and source links.
+The repository code is GPL-3.0, but the bundled MP3 files under `ContainerPeek/audio/` are explicitly excluded from that GPL grant. See [NOTICE](NOTICE) for the asset carve-out and source links.
 
 ## References
 

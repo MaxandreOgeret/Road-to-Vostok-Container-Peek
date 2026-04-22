@@ -46,7 +46,9 @@ class InterfaceProxy:
 
 
 static func notify_container_open(container_node: Node, ui_root: Node) -> bool:
-	var xp_mod = Engine.get_meta("XPMain", null)
+	if not Engine.has_meta("XPMain"):
+		return false
+	var xp_mod = Engine.get_meta("XPMain")
 	if xp_mod == null or container_node == null:
 		return false
 	if not _tracking_allowed(xp_mod):

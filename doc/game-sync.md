@@ -4,6 +4,10 @@ This mod intentionally mirrors a small set of `Road to Vostok` runtime behaviors
 
 Use this file as the resync checklist after decompiling a new build.
 
+Last verified against the decompiled game data currently in this repository, which reports:
+
+- `Godot Engine v4.6.1.stable.official.14d19694e`
+
 ## How To Use This File
 
 1. Decompile the current game scripts from `RTV.pck`.
@@ -16,7 +20,7 @@ Use this file as the resync checklist after decompiling a new build.
 ### Transfer Order And Stacking
 
 - Local code:
-  - [ContainerPeek/Main.gd](/home/mackou/project/vostok_lootmenu/ContainerPeek/Main.gd:1368) `_try_direct_slot_transfer`
+  - `ContainerPeek/Main.gd` `_try_direct_slot_transfer`
 - Upstream source:
   - `res://Scripts/Interface.gd`
   - `FastTransfer()`
@@ -38,7 +42,7 @@ Use this file as the resync checklist after decompiling a new build.
 ### Slot Weight Calculation
 
 - Local code:
-  - [ContainerPeek/ItemSupport.gd](/home/mackou/project/vostok_lootmenu/ContainerPeek/ItemSupport.gd:94) `slot_total_weight`
+  - `ContainerPeek/ItemSupport.gd` `slot_total_weight`
 - Upstream source:
   - `res://Scripts/Item.gd`
   - `Weight()`
@@ -60,7 +64,7 @@ Use this file as the resync checklist after decompiling a new build.
 ### Summary Amount Semantics
 
 - Local code:
-  - [ContainerPeek/ItemSupport.gd](/home/mackou/project/vostok_lootmenu/ContainerPeek/ItemSupport.gd:73) `slot_summary_amount`
+  - `ContainerPeek/ItemSupport.gd` `slot_summary_amount`
 - Upstream source:
   - `res://Scripts/Item.gd`
   - the amount display logic in `UpdateDetails()` and related item UI paths
@@ -79,8 +83,8 @@ Use this file as the resync checklist after decompiling a new build.
 ### Condition Visibility Rules
 
 - Local code:
-  - [ContainerPeek/ItemSupport.gd](/home/mackou/project/vostok_lootmenu/ContainerPeek/ItemSupport.gd:213) `slot_condition_percent`
-  - [ContainerPeek/ItemSupport.gd](/home/mackou/project/vostok_lootmenu/ContainerPeek/ItemSupport.gd:230) `slot_shows_condition`
+  - `ContainerPeek/ItemSupport.gd` `slot_condition_percent`
+  - `ContainerPeek/ItemSupport.gd` `slot_shows_condition`
 - Upstream source:
   - `res://Scripts/Item.gd`
   - `res://Scripts/Tooltip.gd`
@@ -99,8 +103,8 @@ Use this file as the resync checklist after decompiling a new build.
 ### Rarity Enum And Color Semantics
 
 - Local code:
-  - [ContainerPeek/ItemSupport.gd](/home/mackou/project/vostok_lootmenu/ContainerPeek/ItemSupport.gd:287) `rarity_color`
-  - [ContainerPeek/ItemSupport.gd](/home/mackou/project/vostok_lootmenu/ContainerPeek/ItemSupport.gd:308) `normalize_rarity_value`
+  - `ContainerPeek/ItemSupport.gd` `rarity_color`
+  - `ContainerPeek/ItemSupport.gd` `normalize_rarity_value`
 - Upstream source:
   - `res://Scripts/ItemData.gd`
   - `enum Rarity { Common, Rare, Legendary, Null }`
