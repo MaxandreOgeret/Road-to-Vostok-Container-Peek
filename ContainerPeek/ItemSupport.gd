@@ -13,6 +13,7 @@ static func item_summaries(node: Node) -> Dictionary:
 				"weight": 0.0,
 				"condition_values": [],
 				"rarity": RARITY_COMMON,
+				"type": "",
 			}
 
 		var summary := result[item_name] as Dictionary
@@ -20,6 +21,8 @@ static func item_summaries(node: Node) -> Dictionary:
 		summary["amount"] = int(summary.get("amount", 0)) + amount
 		summary["weight"] = float(summary.get("weight", 0.0)) + slot_total_weight(node, slot)
 		summary["rarity"] = slot_rarity(slot)
+		if str(summary.get("type", "")).is_empty():
+			summary["type"] = slot_type(slot)
 
 		var condition := slot_condition_percent(slot)
 		if condition >= 0:
@@ -237,6 +240,13 @@ static func slot_rarity(slot: Variant) -> String:
 
 	var rarity := str(raw_rarity).strip_edges()
 	return normalize_rarity_value(rarity)
+
+
+static func slot_type(slot: Variant) -> String:
+	var item := slot_item(slot)
+	if item == null:
+		return ""
+	return str(property_value(item, &"type")).strip_edges()
 
 
 static func slot_condition_percent(slot: Variant) -> int:

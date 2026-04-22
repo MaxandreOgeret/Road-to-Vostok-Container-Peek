@@ -37,6 +37,7 @@ static func make_spacer(height: float) -> Control:
 
 static func make_header_row(
 	ui_theme: Theme,
+	icon_col_width: float,
 	row_prefix_width: float,
 	item_col_min_width: float,
 	col_separation: int,
@@ -46,6 +47,10 @@ static func make_header_row(
 	var row := HBoxContainer.new()
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	row.add_theme_constant_override("separation", col_separation)
+
+	var icon_spacer := Control.new()
+	icon_spacer.custom_minimum_size = Vector2(icon_col_width, 0.0)
+	row.add_child(icon_spacer)
 
 	var prefix_spacer := Control.new()
 	prefix_spacer.custom_minimum_size = Vector2(row_prefix_width, 0.0)
@@ -143,21 +148,27 @@ static func make_selected_row_style(ui_tile: Texture2D, row_side_pad: int) -> St
 		textured.texture_margin_right = 1.0
 		textured.texture_margin_bottom = 1.0
 		textured.content_margin_left = row_side_pad
+		textured.content_margin_top = 0.0
 		textured.content_margin_right = row_side_pad
+		textured.content_margin_bottom = 0.0
 		textured.modulate_color = Color(1.0, 1.0, 1.0, 0.32)
 		return textured
 
 	var selected_fallback := StyleBoxFlat.new()
 	selected_fallback.bg_color = Color(0.2, 0.2, 0.2, 0.9)
 	selected_fallback.content_margin_left = row_side_pad
+	selected_fallback.content_margin_top = 0.0
 	selected_fallback.content_margin_right = row_side_pad
+	selected_fallback.content_margin_bottom = 0.0
 	return selected_fallback
 
 
 static func make_plain_row_style(row_side_pad: int) -> StyleBox:
 	var empty_style := StyleBoxEmpty.new()
 	empty_style.content_margin_left = row_side_pad
+	empty_style.content_margin_top = 0.0
 	empty_style.content_margin_right = row_side_pad
+	empty_style.content_margin_bottom = 0.0
 	return empty_style
 
 
@@ -165,6 +176,7 @@ static func make_placeholder_row(
 	ui_theme: Theme,
 	item_row_height: int,
 	row_side_pad: int,
+	icon_col_width: float,
 	row_prefix_width: float,
 	col_separation: int,
 	weight_col_width: float,
@@ -197,6 +209,10 @@ static func make_placeholder_row(
 	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	box.add_theme_constant_override("separation", col_separation)
 	margins.add_child(box)
+
+	var icon_spacer := Control.new()
+	icon_spacer.custom_minimum_size = Vector2(icon_col_width, 0.0)
+	box.add_child(icon_spacer)
 
 	var prefix_spacer := Control.new()
 	prefix_spacer.custom_minimum_size = Vector2(row_prefix_width, 0.0)
@@ -233,6 +249,7 @@ static func make_placeholder_bar(width: float, placeholder_blocks: Array, tint: 
 static func make_item_row(
 	ui_theme: Theme,
 	item_row_height: int,
+	icon_col_width: float,
 	row_prefix_width: float,
 	col_separation: int,
 	weight_col_width: float,
@@ -244,7 +261,9 @@ static func make_item_row(
 	weight_text: String,
 	condition_text: String,
 	rarity_color: Color,
-	selected: bool
+	selected: bool,
+	left_icon: Texture2D,
+	show_left_icon: bool
 ) -> Control:
 	var row := PanelContainer.new()
 	row.theme = ui_theme
@@ -258,6 +277,33 @@ static func make_item_row(
 	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	box.add_theme_constant_override("separation", col_separation)
 	row.add_child(box)
+
+	var icon_slot := CenterContainer.new()
+	icon_slot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	icon_slot.custom_minimum_size = Vector2(icon_col_width, float(item_row_height))
+	box.add_child(icon_slot)
+
+	if left_icon != null and show_left_icon:
+		var icon_margin := MarginContainer.new()
+		icon_margin.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		icon_margin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		icon_margin.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		icon_margin.add_theme_constant_override("margin_left", 1)
+		icon_margin.add_theme_constant_override("margin_top", 1)
+		icon_margin.add_theme_constant_override("margin_right", 1)
+		icon_margin.add_theme_constant_override("margin_bottom", 1)
+		icon_slot.add_child(icon_margin)
+
+		var icon := TextureRect.new()
+		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		icon.texture = left_icon
+		icon.modulate = rarity_color
+		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		icon.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		icon.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		icon.custom_minimum_size = Vector2(icon_col_width - 2.0, item_row_height - 2.0)
+		icon_margin.add_child(icon)
 
 	var prefix_label := Label.new()
 	prefix_label.theme = ui_theme

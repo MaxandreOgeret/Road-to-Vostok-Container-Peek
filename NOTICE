@@ -26,3 +26,14 @@ Audio source links:
 - https://pixabay.com/sound-effects/film-special-effects-zipper-sound-effect-336780/
 - https://pixabay.com/sound-effects/film-special-effects-zipper-95036/
 - https://pixabay.com/sound-effects/film-special-effects-woven-nylon-bag-rustling-and-unzipping-62127/
+
+Exception for bundled icon assets
+---------------------------------
+
+The SVG file `ContainerPeek/img/ammo.svg` is a third-party asset and is not
+covered by the GPL grant for the repository code.
+
+Icon attribution:
+
+- `ContainerPeek/img/ammo.svg`: Bullet by Andhika Pramanto from Noun Project
+  (CC BY 3.0)

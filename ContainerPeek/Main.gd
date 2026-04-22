@@ -14,14 +14,25 @@ const CORPSE_ZIPPER_AUDIO_FILES := [
 	"res://ContainerPeek/audio/container_peek_zipper_1.mp3",
 	"res://ContainerPeek/audio/container_peek_zipper_2.mp3",
 ]
+const AMMO_ICON_SVG_RES := "res://ContainerPeek/img/ammo.svg"
 const UI_THEME_RES := "res://UI/Themes/Theme.tres"
 const UI_TILE_RES := "res://UI/Sprites/Tile.png"
+const CATEGORY_ICON_RES := {
+	"consumables": "res://UI/Sprites/Icon_Starvation.png",
+	"medical": "res://UI/Sprites/Icon_Health.png",
+	"equipment": "res://UI/Sprites/Icon_Insulation.png",
+	"weapons": "res://UI/Sprites/Icon_Weapon.png",
+	"electronics": "res://UI/Sprites/Icon_Electronics.png",
+	"misc": "res://UI/Sprites/Icon_Items.png",
+	"furniture": "res://UI/Sprites/Icon_Object.png",
+}
 const PANEL_OFFSET := Vector2(18.0, 18.0)
 const SCREEN_PAD := 12.0
 const MAX_VISIBLE_ITEMS := 8
 const ITEM_ROW_HEIGHT := 20
 const ITEM_LIST_SEPARATION := 2
 const ROW_SIDE_PAD := 2
+const ICON_COL_WIDTH := 16.0
 const ROW_PREFIX_WIDTH := 16.0
 const ITEM_COL_MIN_WIDTH := 120.0
 const COL_SEPARATION := 8
@@ -114,6 +125,7 @@ var _hint_label: Label
 var _ui_host: Node
 var _ui_theme: Theme
 var _ui_tile: Texture2D
+var _category_icons: Dictionary = {}
 var _item_font: Font
 var _item_font_size := 13
 var _item_text_width_cache: Dictionary = {}
@@ -267,6 +279,7 @@ func _build_ui(host: Node) -> void:
 
 	var header_data := PanelSupport.make_header_row(
 		_ui_theme,
+		ICON_COL_WIDTH,
 		ROW_PREFIX_WIDTH,
 		ITEM_COL_MIN_WIDTH,
 		COL_SEPARATION,
@@ -330,6 +343,61 @@ func _load_ui_assets() -> void:
 		_ui_theme = load(UI_THEME_RES) as Theme
 	if _ui_tile == null and ResourceLoader.exists(UI_TILE_RES):
 		_ui_tile = load(UI_TILE_RES) as Texture2D
+	_load_category_icons()
+
+
+func _load_category_icons() -> void:
+	if not _category_icons.has("ammo"):
+		var ammo_icon := _load_svg_icon(AMMO_ICON_SVG_RES)
+		if ammo_icon != null:
+			_category_icons["ammo"] = ammo_icon
+	for key in CATEGORY_ICON_RES.keys():
+		if _category_icons.has(key):
+			continue
+		var path := str(CATEGORY_ICON_RES[key])
+		if ResourceLoader.exists(path):
+			var texture := load(path) as Texture2D
+			if texture != null:
+				_category_icons[key] = texture
+
+
+func _load_svg_icon(path: String) -> Texture2D:
+	var file := FileAccess.open(path, FileAccess.READ)
+	if file == null:
+		return null
+	var svg_text := file.get_as_text()
+	if svg_text.is_empty():
+		return null
+	return DPITexture.create_from_string(svg_text)
+
+
+func _row_icon_for_item_type(item_type: String) -> Texture2D:
+	var category := _item_category(item_type)
+	if category.is_empty():
+		return null
+	return _category_icons.get(category, null) as Texture2D
+
+
+func _item_category(item_type: String) -> String:
+	match item_type:
+		"Consumable", "Consumables", "Fish":
+			return "consumables"
+		"Medical":
+			return "medical"
+		"Armor", "Backpack", "Belt Pouch", "Clothing", "Helmet", "Rig":
+			return "equipment"
+		"Ammo":
+			return "ammo"
+		"Attachment", "Grenade", "Knife", "Weapon":
+			return "weapons"
+		"Electronics":
+			return "electronics"
+		"Furniture":
+			return "furniture"
+		"Fishing", "Instrument", "Key", "Literature", "Lore", "Misc", " Misc":
+			return "misc"
+		_:
+			return "misc"
 
 
 func _hint_text() -> String:
@@ -1031,13 +1099,14 @@ func _summaries_signature(summaries: Dictionary) -> String:
 	for item_name in names:
 		var summary := summaries[item_name] as Dictionary
 		signature += (
-			"%s|%d|%.3f|%s|%s\n"
+			"%s|%d|%.3f|%s|%s|%s\n"
 			% [
 				str(item_name),
 				int(summary.get("amount", 0)),
 				float(summary.get("weight", 0.0)),
 				str(summary.get("condition", "")),
 				str(summary.get("rarity", ItemSupport.RARITY_COMMON)),
+				str(summary.get("type", "")),
 			]
 		)
 	return signature
@@ -1183,6 +1252,7 @@ func _render_item_rows(node: Node, summaries: Dictionary) -> void:
 				_ui_theme,
 				ITEM_ROW_HEIGHT,
 				ROW_SIDE_PAD,
+				ICON_COL_WIDTH,
 				ROW_PREFIX_WIDTH,
 				COL_SEPARATION,
 				WEIGHT_COL_WIDTH,
@@ -1233,11 +1303,15 @@ func _render_item_rows(node: Node, summaries: Dictionary) -> void:
 	for i in range(window_start, window_end):
 		var item_name := str(visible_names[i])
 		var summary := summaries[item_name] as Dictionary
+		var item_type := str(summary.get("type", "")).strip_edges()
+		var row_icon := _row_icon_for_item_type(item_type)
+		var show_row_icon := row_icon != null
 		var amount := int(summary.get("amount", 1))
 		var line_text := "%s x%d" % [item_name, amount] if amount > 1 else item_name
 		var row := PanelSupport.make_item_row(
 			_ui_theme,
 			ITEM_ROW_HEIGHT,
+			ICON_COL_WIDTH,
 			ROW_PREFIX_WIDTH,
 			COL_SEPARATION,
 			WEIGHT_COL_WIDTH,
@@ -1253,7 +1327,9 @@ func _render_item_rows(node: Node, summaries: Dictionary) -> void:
 				_rarity_colors_enabled(),
 				_rarity_color_map()
 			),
-			i == selected_index
+			i == selected_index,
+			row_icon,
+			show_row_icon
 		)
 		row.set_meta(&"peek_item_index", i)
 		_rendered_item_rows.append(row)
@@ -1266,6 +1342,7 @@ func _render_item_rows(node: Node, summaries: Dictionary) -> void:
 			_ui_theme,
 			ITEM_ROW_HEIGHT,
 			ROW_SIDE_PAD,
+			ICON_COL_WIDTH,
 			ROW_PREFIX_WIDTH,
 			COL_SEPARATION,
 			WEIGHT_COL_WIDTH,
