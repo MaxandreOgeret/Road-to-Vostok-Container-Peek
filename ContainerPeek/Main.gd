@@ -48,6 +48,7 @@ const ENABLE_IN_SHELTER_KEY := "enable_in_shelter"
 const RUMMAGE_IN_SHELTER_KEY := "rummage_in_shelter"
 const PANEL_OPACITY_KEY := "panel_opacity"
 const XP_SKILLS_COMPAT_KEY := "xp_skills_compat"
+const SHOW_CATEGORY_ICONS_KEY := "show_category_icons"
 const RARITY_COMMON_COLOR_KEY := "rarity_common_color"
 const RARITY_RARE_COLOR_KEY := "rarity_rare_color"
 const RARITY_LEGENDARY_COLOR_KEY := "rarity_legendary_color"
@@ -99,6 +100,7 @@ var _last_panel_opacity := -1.0
 var _last_hint_text := ""
 var _last_title_text := ""
 var _last_header_gutter := -1
+var _last_icons_enabled := true
 var _layout_dirty := true
 var _debug_last_target_scroll := -1
 var _debug_last_scroll_control_name := ""
@@ -115,6 +117,7 @@ var _title_label: Label
 var _header_bar: ColorRect
 var _header_margin: MarginContainer
 var _header_item_label: Label
+var _header_row: Control
 var _item_scroll: ScrollContainer
 var _items_box: VBoxContainer
 var _loading_row: HBoxContainer
@@ -279,7 +282,7 @@ func _build_ui(host: Node) -> void:
 
 	var header_data := PanelSupport.make_header_row(
 		_ui_theme,
-		ICON_COL_WIDTH,
+		_icon_col_width(),
 		ROW_PREFIX_WIDTH,
 		ITEM_COL_MIN_WIDTH,
 		COL_SEPARATION,
@@ -287,7 +290,8 @@ func _build_ui(host: Node) -> void:
 		CONDITION_COL_WIDTH
 	)
 	_header_item_label = header_data.get("item_label", null) as Label
-	_header_margin.add_child(header_data.get("row"))
+	_header_row = header_data.get("row") as Control
+	_header_margin.add_child(_header_row)
 
 	_item_scroll = ScrollContainer.new()
 	_item_scroll.theme = _ui_theme
@@ -372,10 +376,16 @@ func _load_svg_icon(path: String) -> Texture2D:
 
 
 func _row_icon_for_item_type(item_type: String) -> Texture2D:
+	if not _show_category_icons():
+		return null
 	var category := _item_category(item_type)
 	if category.is_empty():
 		return null
 	return _category_icons.get(category, null) as Texture2D
+
+
+func _icon_col_width() -> float:
+	return ICON_COL_WIDTH if _show_category_icons() else 0.0
 
 
 func _item_category(item_type: String) -> String:
@@ -538,6 +548,7 @@ func _teardown_runtime() -> void:
 	_title_label = null
 	_header_margin = null
 	_header_item_label = null
+	_header_row = null
 	_item_scroll = null
 	_items_box = null
 	_loading_row = null
@@ -559,6 +570,7 @@ func _teardown_runtime() -> void:
 	_last_hint_text = ""
 	_last_title_text = ""
 	_last_header_gutter = -1
+	_last_icons_enabled = true
 	_layout_dirty = true
 
 
@@ -599,6 +611,7 @@ func _show_panel(data: Dictionary, delta: float) -> void:
 	_last_focus_title = str(data.get("title", "Container"))
 	_refresh_title(_last_focus_title)
 	_refresh_hint_if_needed()
+	_refresh_header_if_needed()
 
 	var selection_changed := (
 		int(_selection_by_id.get(_current_target_id, 0)) != _last_render_selection
@@ -664,6 +677,36 @@ func _refresh_hint_if_needed() -> void:
 	_last_hint_text = hint_text
 	_hint_label.text = hint_text
 	_layout_dirty = true
+
+
+func _refresh_header_if_needed() -> void:
+	var icons_enabled := _show_category_icons()
+	if icons_enabled == _last_icons_enabled:
+		return
+	_last_icons_enabled = icons_enabled
+	_rebuild_header_row()
+	_layout_dirty = true
+
+
+func _rebuild_header_row() -> void:
+	if _header_margin == null:
+		return
+	if _header_row != null and is_instance_valid(_header_row):
+		_header_margin.remove_child(_header_row)
+		_header_row.queue_free()
+
+	var header_data := PanelSupport.make_header_row(
+		_ui_theme,
+		_icon_col_width(),
+		ROW_PREFIX_WIDTH,
+		maxf(_cached_item_col_width, ITEM_COL_MIN_WIDTH),
+		COL_SEPARATION,
+		WEIGHT_COL_WIDTH,
+		CONDITION_COL_WIDTH
+	)
+	_header_item_label = header_data.get("item_label", null) as Label
+	_header_row = header_data.get("row") as Control
+	_header_margin.add_child(_header_row)
 
 
 func _refresh_layout_if_needed() -> void:
@@ -775,6 +818,7 @@ func _build_render_state(summaries: Dictionary, summary_signature: String) -> Di
 		"summary_signature": summary_signature,
 		"loading": _is_rummage_loading(_current_target_id),
 		"rarity_colors": _rarity_colors_enabled(),
+		"show_icons": _show_category_icons(),
 		"rarity_signature": _rarity_color_signature(),
 		"sort_mode": _sort_mode,
 	}
@@ -1252,7 +1296,7 @@ func _render_item_rows(node: Node, summaries: Dictionary) -> void:
 				_ui_theme,
 				ITEM_ROW_HEIGHT,
 				ROW_SIDE_PAD,
-				ICON_COL_WIDTH,
+				_icon_col_width(),
 				ROW_PREFIX_WIDTH,
 				COL_SEPARATION,
 				WEIGHT_COL_WIDTH,
@@ -1311,7 +1355,7 @@ func _render_item_rows(node: Node, summaries: Dictionary) -> void:
 		var row := PanelSupport.make_item_row(
 			_ui_theme,
 			ITEM_ROW_HEIGHT,
-			ICON_COL_WIDTH,
+			_icon_col_width(),
 			ROW_PREFIX_WIDTH,
 			COL_SEPARATION,
 			WEIGHT_COL_WIDTH,
@@ -1342,7 +1386,7 @@ func _render_item_rows(node: Node, summaries: Dictionary) -> void:
 			_ui_theme,
 			ITEM_ROW_HEIGHT,
 			ROW_SIDE_PAD,
-			ICON_COL_WIDTH,
+			_icon_col_width(),
 			ROW_PREFIX_WIDTH,
 			COL_SEPARATION,
 			WEIGHT_COL_WIDTH,
@@ -1812,6 +1856,10 @@ func _debug_capture_scroll_control(control: Control) -> void:
 
 func _rarity_colors_enabled() -> bool:
 	return ConfigSupport.bool_setting(self, "rarity_colors", true)
+
+
+func _show_category_icons() -> bool:
+	return ConfigSupport.bool_setting(self, SHOW_CATEGORY_ICONS_KEY, true)
 
 
 func _rarity_color_map() -> Dictionary:

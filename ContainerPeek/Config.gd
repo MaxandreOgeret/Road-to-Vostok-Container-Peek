@@ -13,6 +13,7 @@ const TRANSFER_ACTION := &"container_peek_transfer"
 const TAKE_ALL_ACTION := &"container_peek_take_all"
 const SORT_ACTION := &"container_peek_sort"
 const RARITY_COLORS_KEY := "rarity_colors"
+const SHOW_CATEGORY_ICONS_KEY := "show_category_icons"
 const RUMMAGE_TIME_KEY := "rummage_seconds_per_item"
 const RUMMAGE_AUDIO_KEY := "rummage_audio"
 const ENABLE_IN_SHELTER_KEY := "enable_in_shelter"
@@ -192,6 +193,20 @@ func _build_default_config() -> ConfigFile:
 				"default": true,
 				"value": true,
 				"menu_pos": 30,
+			}
+		)
+	)
+	(
+		config
+		. set_value(
+			"Bool",
+			SHOW_CATEGORY_ICONS_KEY,
+			{
+				"name": "Show Category Icons",
+				"tooltip": "Display item category icons in the preview list.",
+				"default": true,
+				"value": true,
+				"menu_pos": 35,
 			}
 		)
 	)
