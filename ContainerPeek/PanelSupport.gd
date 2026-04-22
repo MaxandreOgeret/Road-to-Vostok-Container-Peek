@@ -35,6 +35,52 @@ static func make_spacer(height: float) -> Control:
 	return spacer
 
 
+static func _fixed_spacer(width: float) -> Control:
+	var spacer := Control.new()
+	spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	spacer.custom_minimum_size = Vector2(width, 0.0)
+	return spacer
+
+
+static func _row_box(col_separation: int) -> HBoxContainer:
+	var box := HBoxContainer.new()
+	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	box.add_theme_constant_override("separation", col_separation)
+	return box
+
+
+static func _label(
+	ui_theme: Theme,
+	text: String,
+	font_size: int,
+	font_color: Color,
+	width: float = 0.0,
+	align: HorizontalAlignment = HORIZONTAL_ALIGNMENT_LEFT,
+	expand: bool = false
+) -> Label:
+	var label := Label.new()
+	label.theme = ui_theme
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	label.text = text
+	label.horizontal_alignment = align
+	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label.add_theme_font_size_override("font_size", font_size)
+	label.add_theme_color_override("font_color", font_color)
+	if width > 0.0:
+		label.custom_minimum_size = Vector2(width, 0.0)
+	if expand:
+		label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	return label
+
+
+static func _set_row_padding(style: StyleBox, row_side_pad: int) -> void:
+	style.content_margin_left = row_side_pad
+	style.content_margin_top = 0.0
+	style.content_margin_right = row_side_pad
+	style.content_margin_bottom = 0.0
+
+
 static func make_header_row(
 	ui_theme: Theme,
 	icon_col_width: float,
@@ -44,44 +90,18 @@ static func make_header_row(
 	weight_col_width: float,
 	condition_col_width: float
 ) -> Dictionary:
-	var row := HBoxContainer.new()
-	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	row.add_theme_constant_override("separation", col_separation)
+	var row := _row_box(col_separation)
+	var dim := Color(1.0, 1.0, 1.0, 0.5)
 
-	var icon_spacer := Control.new()
-	icon_spacer.custom_minimum_size = Vector2(icon_col_width, 0.0)
-	row.add_child(icon_spacer)
+	row.add_child(_fixed_spacer(icon_col_width))
+	row.add_child(_fixed_spacer(row_prefix_width))
 
-	var prefix_spacer := Control.new()
-	prefix_spacer.custom_minimum_size = Vector2(row_prefix_width, 0.0)
-	row.add_child(prefix_spacer)
-
-	var item_label := Label.new()
-	item_label.theme = ui_theme
-	item_label.text = "Item"
-	item_label.custom_minimum_size = Vector2(item_col_min_width, 0.0)
-	item_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	item_label.add_theme_font_size_override("font_size", 11)
-	item_label.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0, 0.5))
+	var item_label := _label(
+		ui_theme, "Item", 11, dim, item_col_min_width, HORIZONTAL_ALIGNMENT_LEFT, true
+	)
 	row.add_child(item_label)
-
-	var weight_label := Label.new()
-	weight_label.theme = ui_theme
-	weight_label.text = "Weight"
-	weight_label.custom_minimum_size = Vector2(weight_col_width, 0.0)
-	weight_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	weight_label.add_theme_font_size_override("font_size", 11)
-	weight_label.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0, 0.5))
-	row.add_child(weight_label)
-
-	var condition_label := Label.new()
-	condition_label.theme = ui_theme
-	condition_label.text = "Cond."
-	condition_label.custom_minimum_size = Vector2(condition_col_width, 0.0)
-	condition_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	condition_label.add_theme_font_size_override("font_size", 11)
-	condition_label.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0, 0.5))
-	row.add_child(condition_label)
+	row.add_child(_label(ui_theme, "Weight", 11, dim, weight_col_width, HORIZONTAL_ALIGNMENT_RIGHT))
+	row.add_child(_label(ui_theme, "Cond.", 11, dim, condition_col_width, HORIZONTAL_ALIGNMENT_RIGHT))
 
 	return {"row": row, "item_label": item_label}
 
@@ -99,47 +119,31 @@ static func make_row(
 	row.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	row.custom_minimum_size = Vector2(0.0, float(item_row_height))
 	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_theme_stylebox_override("panel", make_row_style(ui_tile, 2, selected))
 
-	var style: StyleBox
-	if selected:
-		if ui_tile != null:
-			var textured := StyleBoxTexture.new()
-			textured.texture = ui_tile
-			textured.texture_margin_left = 1.0
-			textured.texture_margin_top = 1.0
-			textured.texture_margin_right = 1.0
-			textured.texture_margin_bottom = 1.0
-			textured.modulate_color = Color(1.0, 1.0, 1.0, 0.32)
-			style = textured
-		else:
-			var selected_fallback := StyleBoxFlat.new()
-			selected_fallback.bg_color = Color(0.2, 0.2, 0.2, 0.9)
-			style = selected_fallback
-	else:
-		var empty_style := StyleBoxEmpty.new()
-		empty_style.content_margin_left = 2.0
-		empty_style.content_margin_right = 2.0
-		style = empty_style
-	row.add_theme_stylebox_override("panel", style)
-
-	var label := Label.new()
-	label.theme = ui_theme
-	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	label.text = ("> " if selected else "  ") + text
-	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	label.add_theme_font_size_override("font_size", 13)
-	if status:
-		label.add_theme_color_override("font_color", Color(1.0, 0.87, 0.55, 1.0))
-	elif selected:
-		label.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0, 1.0))
-	else:
-		label.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0, 0.78))
-	row.add_child(label)
+	var color := Color(1.0, 0.87, 0.55, 1.0) if status else (
+		Color(1.0, 1.0, 1.0, 1.0) if selected else Color(1.0, 1.0, 1.0, 0.78)
+	)
+	row.add_child(
+		_label(
+			ui_theme,
+			("> " if selected else "  ") + text,
+			13,
+			color,
+			0.0,
+			HORIZONTAL_ALIGNMENT_LEFT,
+			true
+		)
+	)
 	return row
 
 
-static func make_selected_row_style(ui_tile: Texture2D, row_side_pad: int) -> StyleBox:
+static func make_row_style(ui_tile: Texture2D, row_side_pad: int, selected: bool) -> StyleBox:
+	if not selected:
+		var empty_style := StyleBoxEmpty.new()
+		_set_row_padding(empty_style, row_side_pad)
+		return empty_style
+
 	if ui_tile != null:
 		var textured := StyleBoxTexture.new()
 		textured.texture = ui_tile
@@ -147,29 +151,14 @@ static func make_selected_row_style(ui_tile: Texture2D, row_side_pad: int) -> St
 		textured.texture_margin_top = 1.0
 		textured.texture_margin_right = 1.0
 		textured.texture_margin_bottom = 1.0
-		textured.content_margin_left = row_side_pad
-		textured.content_margin_top = 0.0
-		textured.content_margin_right = row_side_pad
-		textured.content_margin_bottom = 0.0
 		textured.modulate_color = Color(1.0, 1.0, 1.0, 0.32)
+		_set_row_padding(textured, row_side_pad)
 		return textured
 
 	var selected_fallback := StyleBoxFlat.new()
 	selected_fallback.bg_color = Color(0.2, 0.2, 0.2, 0.9)
-	selected_fallback.content_margin_left = row_side_pad
-	selected_fallback.content_margin_top = 0.0
-	selected_fallback.content_margin_right = row_side_pad
-	selected_fallback.content_margin_bottom = 0.0
+	_set_row_padding(selected_fallback, row_side_pad)
 	return selected_fallback
-
-
-static func make_plain_row_style(row_side_pad: int) -> StyleBox:
-	var empty_style := StyleBoxEmpty.new()
-	empty_style.content_margin_left = row_side_pad
-	empty_style.content_margin_top = 0.0
-	empty_style.content_margin_right = row_side_pad
-	empty_style.content_margin_bottom = 0.0
-	return empty_style
 
 
 static func make_placeholder_row(
@@ -193,8 +182,7 @@ static func make_placeholder_row(
 	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 
 	var style := StyleBoxEmpty.new()
-	style.content_margin_left = row_side_pad
-	style.content_margin_right = row_side_pad
+	_set_row_padding(style, row_side_pad)
 	row.add_theme_stylebox_override("panel", style)
 
 	var margins := MarginContainer.new()
@@ -204,19 +192,11 @@ static func make_placeholder_row(
 	margins.add_theme_constant_override("margin_bottom", 5)
 	row.add_child(margins)
 
-	var box := HBoxContainer.new()
-	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	box.add_theme_constant_override("separation", col_separation)
+	var box := _row_box(col_separation)
 	margins.add_child(box)
 
-	var icon_spacer := Control.new()
-	icon_spacer.custom_minimum_size = Vector2(icon_col_width, 0.0)
-	box.add_child(icon_spacer)
-
-	var prefix_spacer := Control.new()
-	prefix_spacer.custom_minimum_size = Vector2(row_prefix_width, 0.0)
-	box.add_child(prefix_spacer)
+	box.add_child(_fixed_spacer(icon_col_width))
+	box.add_child(_fixed_spacer(row_prefix_width))
 
 	var item_widths := [0.92, 0.76, 1.0, 0.84]
 	box.add_child(
@@ -272,10 +252,7 @@ static func make_item_row(
 	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_theme_stylebox_override("panel", selected_style if selected else plain_style)
 
-	var box := HBoxContainer.new()
-	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	box.add_theme_constant_override("separation", col_separation)
+	var box := _row_box(col_separation)
 	row.add_child(box)
 
 	var icon_slot := CenterContainer.new()
@@ -305,53 +282,40 @@ static func make_item_row(
 		icon.custom_minimum_size = Vector2(icon_col_width - 2.0, item_row_height - 2.0)
 		icon_margin.add_child(icon)
 
-	var prefix_label := Label.new()
-	prefix_label.theme = ui_theme
-	prefix_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	prefix_label.text = ">" if selected else ""
-	prefix_label.custom_minimum_size = Vector2(row_prefix_width, 0.0)
-	prefix_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	prefix_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	prefix_label.add_theme_font_size_override("font_size", 13)
-	prefix_label.add_theme_color_override(
-		"font_color", Color(1.0, 1.0, 1.0, 1.0) if selected else Color(1.0, 1.0, 1.0, 0.0)
+	var prefix_label := _label(
+		ui_theme,
+		">" if selected else "",
+		13,
+		Color(1.0, 1.0, 1.0, 1.0) if selected else Color(1.0, 1.0, 1.0, 0.0),
+		row_prefix_width,
+		HORIZONTAL_ALIGNMENT_CENTER
 	)
 	box.add_child(prefix_label)
 
-	var name_label := Label.new()
-	name_label.theme = ui_theme
-	name_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	name_label.text = text
-	name_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	name_label.custom_minimum_size = Vector2(item_col_width, 0.0)
-	name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	name_label.add_theme_font_size_override("font_size", 13)
-	name_label.add_theme_color_override("font_color", rarity_color)
+	var name_label := _label(
+		ui_theme, text, 13, rarity_color, item_col_width, HORIZONTAL_ALIGNMENT_LEFT, true
+	)
 	box.add_child(name_label)
 
-	var weight_label := Label.new()
-	weight_label.theme = ui_theme
-	weight_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	weight_label.text = weight_text
-	weight_label.custom_minimum_size = Vector2(weight_col_width, 0.0)
-	weight_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	weight_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	weight_label.add_theme_font_size_override("font_size", 12)
-	weight_label.add_theme_color_override(
-		"font_color", Color(1.0, 1.0, 1.0, 1.0) if selected else Color(1.0, 1.0, 1.0, 0.66)
+	var dim := Color(1.0, 1.0, 1.0, 0.66)
+	var bright := Color(1.0, 1.0, 1.0, 1.0)
+	var weight_label := _label(
+		ui_theme,
+		weight_text,
+		12,
+		bright if selected else dim,
+		weight_col_width,
+		HORIZONTAL_ALIGNMENT_RIGHT
 	)
 	box.add_child(weight_label)
 
-	var condition_label := Label.new()
-	condition_label.theme = ui_theme
-	condition_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	condition_label.text = condition_text
-	condition_label.custom_minimum_size = Vector2(condition_col_width, 0.0)
-	condition_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	condition_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	condition_label.add_theme_font_size_override("font_size", 12)
-	condition_label.add_theme_color_override(
-		"font_color", Color(1.0, 1.0, 1.0, 1.0) if selected else Color(1.0, 1.0, 1.0, 0.66)
+	var condition_label := _label(
+		ui_theme,
+		condition_text,
+		12,
+		bright if selected else dim,
+		condition_col_width,
+		HORIZONTAL_ALIGNMENT_RIGHT
 	)
 	box.add_child(condition_label)
 

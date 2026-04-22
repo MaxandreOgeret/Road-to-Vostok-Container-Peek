@@ -1641,11 +1641,11 @@ func _row_style(selected: bool) -> StyleBox:
 	if selected:
 		if _selected_row_style != null:
 			return _selected_row_style
-		_selected_row_style = PanelSupport.make_selected_row_style(_ui_tile, ROW_SIDE_PAD)
+		_selected_row_style = PanelSupport.make_row_style(_ui_tile, ROW_SIDE_PAD, true)
 		return _selected_row_style
 
 	if _plain_row_style == null:
-		_plain_row_style = PanelSupport.make_plain_row_style(ROW_SIDE_PAD)
+		_plain_row_style = PanelSupport.make_row_style(_ui_tile, ROW_SIDE_PAD, false)
 	return _plain_row_style
 
 
