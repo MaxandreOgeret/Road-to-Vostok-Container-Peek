@@ -7,66 +7,270 @@ const SORT_MODE_WEIGHT := 2
 const SORT_MODE_VALUE := 3
 const RARITY_COMMON := "Common"
 
-var _selection_by_target: Dictionary = {}
+var _debug_enabled := false
+var _debug_log_path := ""
 var _selected_name_by_target: Dictionary = {}
+var _anchor_row_by_target: Dictionary = {}
+var _window_start_by_target: Dictionary = {}
+var _anchored_by_target: Dictionary = {}
+var _manual_input_by_target: Dictionary = {}
 var _reveal_state_by_target: Dictionary = {}
 
 
+func set_debug_enabled(enabled: bool, log_path: String) -> void:
+	_debug_enabled = enabled
+	_debug_log_path = log_path
+
+
 func reset() -> void:
-	_selection_by_target.clear()
+	var had_state := (
+		not _selected_name_by_target.is_empty()
+		or not _anchor_row_by_target.is_empty()
+		or not _window_start_by_target.is_empty()
+		or not _anchored_by_target.is_empty()
+		or not _manual_input_by_target.is_empty()
+		or not _reveal_state_by_target.is_empty()
+	)
 	_selected_name_by_target.clear()
+	_anchor_row_by_target.clear()
+	_window_start_by_target.clear()
+	_anchored_by_target.clear()
+	_manual_input_by_target.clear()
 	_reveal_state_by_target.clear()
+	if had_state:
+		_debug_log("reset-all")
 
 
 func reset_target(target_id: int) -> void:
 	if target_id == -1:
 		return
-	_selection_by_target[target_id] = 0
+	var had_state := (
+		_selected_name_by_target.has(target_id)
+		or _anchor_row_by_target.has(target_id)
+		or _window_start_by_target.has(target_id)
+		or _anchored_by_target.has(target_id)
+		or _manual_input_by_target.has(target_id)
+		or _reveal_state_by_target.has(target_id)
+	)
 	_selected_name_by_target.erase(target_id)
+	_anchor_row_by_target.erase(target_id)
+	_window_start_by_target.erase(target_id)
+	_anchored_by_target.erase(target_id)
+	_manual_input_by_target.erase(target_id)
+	_reveal_state_by_target.erase(target_id)
+	if had_state:
+		_debug_log("reset-target id=%d" % target_id)
 
 
-func visible_names_for(
+func reset_for_sort_change(target_id: int) -> void:
+	if target_id != -1:
+		_debug_log("reset-sort id=%d" % target_id)
+	reset_target(target_id)
+
+
+func derive_state(
+	target_id: int,
+	summaries: Dictionary,
+	summary_signature: String,
+	revealed_count: int,
+	sort_mode: int,
+	max_visible_items: int
+) -> Dictionary:
+	var visible_names := _visible_names(
+		target_id, summaries, summary_signature, revealed_count, sort_mode
+	)
+	var visible_count := visible_names.size()
+	var viewport_size := maxi(1, max_visible_items)
+	var viewport_full := visible_count >= viewport_size
+	var logical_row_count := visible_count + (1 if visible_count < summaries.size() else 0)
+	var manual_input := bool(_manual_input_by_target.get(target_id, false))
+
+	if not viewport_full:
+		if bool(_anchored_by_target.get(target_id, false)):
+			_debug_log(
+				(
+					"drop-anchor id=%d visible=%d viewport=%d"
+					% [target_id, visible_count, viewport_size]
+				)
+			)
+		_anchored_by_target[target_id] = false
+		_anchor_row_by_target.erase(target_id)
+		_window_start_by_target[target_id] = 0
+	else:
+		var selected_index_for_anchor := _resolved_selected_index(
+			target_id, visible_names, false, viewport_size, manual_input
+		)
+		if not bool(_anchored_by_target.get(target_id, false)):
+			_anchor_row_by_target[target_id] = clampi(
+				selected_index_for_anchor, 0, viewport_size - 1
+			)
+			_anchored_by_target[target_id] = true
+			_debug_log(
+				(
+					"enter-anchor id=%d visible=%d viewport=%d selected=%d anchor_row=%d"
+					% [
+						target_id,
+						visible_count,
+						viewport_size,
+						selected_index_for_anchor,
+						int(_anchor_row_by_target.get(target_id, 0)),
+					]
+				)
+			)
+
+	var anchored := viewport_full and bool(_anchored_by_target.get(target_id, false))
+	var selected_index := _resolved_selected_index(
+		target_id, visible_names, anchored, viewport_size, manual_input or anchored
+	)
+	var selected_name := ""
+	if selected_index >= 0 and selected_index < visible_names.size():
+		selected_name = str(visible_names[selected_index])
+		_selected_name_by_target[target_id] = selected_name
+
+	var window_start := 0
+	if anchored and selected_index >= 0:
+		var anchor_row := clampi(int(_anchor_row_by_target.get(target_id, 0)), 0, viewport_size - 1)
+		window_start = clampi(
+			selected_index - anchor_row, 0, maxi(visible_count - viewport_size, 0)
+		)
+	else:
+		window_start = 0
+	_window_start_by_target[target_id] = window_start
+
+	var window_end := mini(window_start + viewport_size, logical_row_count)
+	var rendered_names: Array = []
+	var item_window_end := mini(window_end, visible_count)
+	for i in range(window_start, item_window_end):
+		rendered_names.append(str(visible_names[i]))
+
+	var selected_viewport_row := -1
+	if selected_index >= 0:
+		selected_viewport_row = selected_index - window_start
+
+	_debug_log(
+		(
+			(
+				"derive id=%d visible=%d revealed=%d full=%s anchored=%s selected='%s' "
+				+ "manual=%s "
+				+ "selected_index=%d anchor_row=%d window=%d..%d viewport_row=%d "
+				+ "placeholder=%s"
+			)
+			% [
+				target_id,
+				visible_count,
+				revealed_count,
+				str(viewport_full),
+				str(anchored),
+				selected_name,
+				str(manual_input),
+				selected_index,
+				int(_anchor_row_by_target.get(target_id, -1)),
+				window_start,
+				window_end,
+				selected_viewport_row,
+				str(logical_row_count > visible_count and window_end > visible_count),
+			]
+		)
+	)
+
+	return {
+		"visible_names": visible_names,
+		"selected_name": selected_name,
+		"selected_index": selected_index,
+		"selected_viewport_row": selected_viewport_row,
+		"window_start": window_start,
+		"window_end": window_end,
+		"rendered_names": rendered_names,
+		"render_placeholder": logical_row_count > visible_count and window_end > visible_count,
+		"viewport_full": viewport_full,
+		"anchored": anchored,
+		"snap_to_top": false,
+	}
+
+
+func move_selection(
+	target_id: int, item_names: Array, direction: int, max_visible_items: int
+) -> bool:
+	if target_id == -1 or item_names.is_empty() or direction == 0:
+		return false
+
+	var current := _resolved_selected_index(
+		target_id,
+		item_names,
+		bool(_anchored_by_target.get(target_id, false)),
+		max_visible_items,
+		true
+	)
+	var next_selection := clampi(current + direction, 0, item_names.size() - 1)
+	if next_selection == current:
+		return false
+
+	var viewport_size := maxi(1, max_visible_items)
+	var viewport_full := item_names.size() >= viewport_size
+	var next_item_name := str(item_names[next_selection])
+	_selected_name_by_target[target_id] = next_item_name
+	_manual_input_by_target[target_id] = true
+
+	if viewport_full:
+		var window_start := int(_window_start_by_target.get(target_id, 0))
+		if next_selection < window_start:
+			window_start = next_selection
+		elif next_selection >= window_start + viewport_size:
+			window_start = next_selection - (viewport_size - 1)
+		window_start = clampi(window_start, 0, maxi(item_names.size() - viewport_size, 0))
+		_window_start_by_target[target_id] = window_start
+		_anchor_row_by_target[target_id] = next_selection - window_start
+		_anchored_by_target[target_id] = true
+	else:
+		_window_start_by_target[target_id] = 0
+		_anchor_row_by_target.erase(target_id)
+		_anchored_by_target[target_id] = false
+
+	_debug_log(
+		(
+			("move id=%d dir=%d current=%d next=%d item='%s' full=%s window_start=%d anchor_row=%d")
+			% [
+				target_id,
+				direction,
+				current,
+				next_selection,
+				next_item_name,
+				str(viewport_full),
+				int(_window_start_by_target.get(target_id, 0)),
+				int(_anchor_row_by_target.get(target_id, -1)),
+			]
+		)
+	)
+
+	return true
+
+
+func selected_name(target_id: int, item_names: Array) -> String:
+	var selected_index := _resolved_selected_index(
+		target_id,
+		item_names,
+		bool(_anchored_by_target.get(target_id, false)),
+		item_names.size(),
+		true
+	)
+	if selected_index < 0 or selected_index >= item_names.size():
+		return ""
+	return str(item_names[selected_index])
+
+
+func _visible_names(
 	target_id: int,
 	summaries: Dictionary,
 	summary_signature: String,
 	revealed_count: int,
 	sort_mode: int
 ) -> Array:
-	var ordered_names := _revealed_names(target_id, summaries, summary_signature, revealed_count)
-	ordered_names.sort_custom(
+	var names := _revealed_names(target_id, summaries, summary_signature, revealed_count)
+	names.sort_custom(
 		func(a: Variant, b: Variant) -> bool:
 			return _item_name_less(str(a), str(b), summaries, sort_mode)
 	)
-
-	_sync_selection(target_id, ordered_names)
-	return ordered_names
-
-
-func move_selection(target_id: int, item_names: Array, direction: int) -> bool:
-	if target_id == -1 or item_names.is_empty() or direction == 0:
-		return false
-
-	var current := _sync_selection(target_id, item_names)
-	var next_selection := clampi(current + direction, 0, item_names.size() - 1)
-	if next_selection == current:
-		return false
-
-	_set_selection(target_id, item_names, next_selection)
-	return true
-
-
-func selected_index(target_id: int, item_names: Array) -> int:
-	if item_names.is_empty():
-		return 0
-	return _sync_selection(target_id, item_names)
-
-
-func selected_name(target_id: int, item_names: Array) -> String:
-	if target_id == -1 or item_names.is_empty():
-		return ""
-
-	var index := _sync_selection(target_id, item_names)
-	return str(item_names[index])
+	return names
 
 
 func _revealed_names(
@@ -95,33 +299,47 @@ func _reveal_order(target_id: int, summaries: Dictionary, summary_signature: Str
 	return names
 
 
-func _sync_selection(target_id: int, item_names: Array) -> int:
+func _resolved_selected_index(
+	target_id: int,
+	item_names: Array,
+	anchored: bool,
+	max_visible_items: int,
+	preserve_selected_name: bool
+) -> int:
 	if target_id == -1 or item_names.is_empty():
 		if target_id != -1:
-			_selection_by_target[target_id] = 0
 			_selected_name_by_target.erase(target_id)
-		return 0
+		return -1
 
-	var selected_name := str(_selected_name_by_target.get(target_id, ""))
-	if not selected_name.is_empty():
-		var selected_index := item_names.find(selected_name)
-		if selected_index >= 0:
-			_selection_by_target[target_id] = selected_index
-			return selected_index
+	if preserve_selected_name:
+		var selected_name := str(_selected_name_by_target.get(target_id, ""))
+		if not selected_name.is_empty():
+			var selected_index := item_names.find(selected_name)
+			if selected_index >= 0:
+				return selected_index
 
-	var current := int(_selection_by_target.get(target_id, 0))
-	var clamped := clampi(current, 0, item_names.size() - 1)
-	_set_selection(target_id, item_names, clamped)
-	return clamped
+	if anchored:
+		var window_start := int(_window_start_by_target.get(target_id, 0))
+		var anchor_row := clampi(
+			int(_anchor_row_by_target.get(target_id, 0)), 0, maxi(0, max_visible_items - 1)
+		)
+		return clampi(window_start + anchor_row, 0, item_names.size() - 1)
+
+	return 0
 
 
-func _set_selection(target_id: int, item_names: Array, index: int) -> void:
-	if target_id == -1 or item_names.is_empty():
+func _debug_log(line: String) -> void:
+	if not _debug_enabled or _debug_log_path.is_empty():
 		return
 
-	var clamped := clampi(index, 0, item_names.size() - 1)
-	_selection_by_target[target_id] = clamped
-	_selected_name_by_target[target_id] = str(item_names[clamped])
+	var file := FileAccess.open(_debug_log_path, FileAccess.READ_WRITE)
+	if file == null:
+		file = FileAccess.open(_debug_log_path, FileAccess.WRITE)
+	if file == null:
+		return
+
+	file.seek_end()
+	file.store_line("[ContainerPeek][Policy] %s" % line)
 
 
 static func _item_name_less(a: String, b: String, summaries: Dictionary, sort_mode: int) -> bool:

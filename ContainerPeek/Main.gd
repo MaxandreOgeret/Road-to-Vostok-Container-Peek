@@ -64,12 +64,13 @@ const SORT_MODE_WEIGHT := 2
 const SORT_MODE_VALUE := 3
 const SORT_MODE_SECTION := "State"
 const SORT_MODE_KEY := "sort_mode"
-const DEBUG_SCROLL_LOG := false
-const DEBUG_SCROLL_LOG_PATH := "user://containerpeek_scroll.log"
+const DEBUG_CURSOR_LOG := true
+const DEBUG_CURSOR_LOG_PATH := "user://containerpeek_cursor.log"
 
 var _tracked: Dictionary = {}
 var _game_data: Resource
 var _item_list := ItemListState.new()
+var _item_list_model: Dictionary = {}
 var _rummage_progress_by_id: Dictionary = {}
 var _xp_skills_notified_by_id: Dictionary = {}
 var _placeholder_blocks: Array = []
@@ -141,6 +142,7 @@ var _scroll_request_id := 0
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
+	_item_list.set_debug_enabled(DEBUG_CURSOR_LOG, DEBUG_CURSOR_LOG_PATH)
 	_sort_mode = clampi(
 		ConfigSupport.int_setting(self, SORT_MODE_SECTION, SORT_MODE_KEY, SORT_MODE_NAME),
 		SORT_MODE_NAME,
@@ -214,7 +216,20 @@ func _unhandled_input(event: InputEvent) -> void:
 		if not (node is Node) or _visible_item_names.is_empty():
 			return
 
-		if not _item_list.move_selection(_current_target_id, _visible_item_names, direction):
+		_debug_append_cursor_log(
+			(
+				"[ContainerPeek][Input] wheel id=%d dir=%d visible=%d selected='%s'"
+				% [
+					_current_target_id,
+					direction,
+					_visible_item_names.size(),
+					str(_item_list_model.get("selected_name", "")),
+				]
+			)
+		)
+		if not _item_list.move_selection(
+			_current_target_id, _visible_item_names, direction, MAX_VISIBLE_ITEMS
+		):
 			return
 		get_viewport().set_input_as_handled()
 
@@ -570,6 +585,7 @@ func _teardown_runtime() -> void:
 	_last_icons_enabled = true
 	_scroll_to_top_on_render = false
 	_item_list.reset()
+	_item_list_model.clear()
 	_layout_dirty = true
 
 
@@ -583,6 +599,7 @@ func _hide_panel() -> void:
 	_rendered_row_end = -1
 	_scroll_to_top_on_render = false
 	_item_list.reset()
+	_item_list_model.clear()
 	_stop_rummage_sound()
 	_last_focus_node = null
 	_last_render_target_id = -1
@@ -617,25 +634,27 @@ func _show_panel(data: Dictionary, delta: float) -> void:
 		var summaries := _current_summaries(_last_focus_node)
 		_advance_rummage_progress(_current_target_id, summaries.size(), delta)
 		_maybe_notify_xp_skills_open(_last_focus_node)
-		_visible_item_names = _item_list.visible_names_for(
+		_item_list_model = _item_list.derive_state(
 			_current_target_id,
 			summaries,
 			_cached_summary_signature,
 			_revealed_item_count(_current_target_id, summaries.size()),
-			_sort_mode
+			_sort_mode,
+			MAX_VISIBLE_ITEMS
 		)
+		_visible_item_names = _item_list_model.get("visible_names", []) as Array
 		var selection_changed := (
-			_item_list.selected_index(_current_target_id, _visible_item_names)
-			!= _last_render_selection
+			int(_item_list_model.get("selected_index", -1)) != _last_render_selection
 		)
 		var render_state := _build_render_state(summaries, _cached_summary_signature)
 		if _should_rerender_rows(render_state) or selection_changed:
 			_render_item_rows(_last_focus_node, summaries)
 			_last_render_target_id = _current_target_id
 			_remember_render_state(render_state)
-		_last_render_selection = _item_list.selected_index(_current_target_id, _visible_item_names)
+		_last_render_selection = int(_item_list_model.get("selected_index", -1))
 		_update_loading_indicator(summaries.size())
 	else:
+		_item_list_model.clear()
 		_update_loading_indicator(0)
 
 	_panel.visible = true
@@ -743,6 +762,9 @@ func _build_render_state(summaries: Dictionary, summary_signature: String) -> Di
 	return {
 		"visible_count": _visible_item_names.size(),
 		"total_count": summaries.size(),
+		"window_start": int(_item_list_model.get("window_start", 0)),
+		"window_end": int(_item_list_model.get("window_end", 0)),
+		"render_placeholder": bool(_item_list_model.get("render_placeholder", false)),
 		"summary_signature": summary_signature,
 		"loading": _is_rummage_loading(_current_target_id),
 		"rarity_colors": _rarity_colors_enabled(),
@@ -1201,12 +1223,12 @@ func _render_item_rows(node: Node, summaries: Dictionary) -> void:
 	_rendered_item_rows.clear()
 	_rendered_placeholder_row = null
 	_placeholder_blocks.clear()
-	_rendered_row_start = 0
-	_rendered_row_end = _visible_item_names.size()
+	_rendered_row_start = int(_item_list_model.get("window_start", 0))
+	_rendered_row_end = int(_item_list_model.get("window_end", 0))
 	_debug_last_top_spacer_height = 0.0
 	_debug_last_bottom_spacer_height = 0.0
-	_debug_last_visible_window_size = _visible_item_names.size()
-	_debug_last_render_window_size = _visible_item_names.size()
+	_debug_last_visible_window_size = mini(_visible_item_names.size(), MAX_VISIBLE_ITEMS)
+	_debug_last_render_window_size = maxi(0, _rendered_row_end - _rendered_row_start)
 	_queue_clear_children(_items_box)
 	_layout_dirty = true
 
@@ -1243,12 +1265,15 @@ func _render_item_rows(node: Node, summaries: Dictionary) -> void:
 
 	var item_col_width := _item_name_column_width(summaries)
 	_set_item_column_width(item_col_width)
-	var selected_index := _item_list.selected_index(node.get_instance_id(), _visible_item_names)
+	var selected_index := int(_item_list_model.get("selected_index", -1))
+	var rendered_names := _item_list_model.get("rendered_names", []) as Array
 	var has_placeholder := _visible_item_names.size() < summaries.size()
 
-	var selected_row: Control = null
-	for i in range(_visible_item_names.size()):
-		var item_name := str(_visible_item_names[i])
+	for item_name_variant in rendered_names:
+		var item_name := str(item_name_variant)
+		var i := _visible_item_names.find(item_name)
+		if i < 0:
+			continue
 		var summary := summaries[item_name] as Dictionary
 		var item_type := str(summary.get("type", "")).strip_edges()
 		var row_icon := _row_icon_for_item_type(item_type)
@@ -1284,10 +1309,8 @@ func _render_item_rows(node: Node, summaries: Dictionary) -> void:
 		row.set_meta(&"peek_item_index", i)
 		_rendered_item_rows.append(row)
 		_items_box.add_child(row)
-		if i == selected_index:
-			selected_row = row
 
-	if has_placeholder:
+	if has_placeholder and bool(_item_list_model.get("render_placeholder", false)):
 		_rendered_placeholder_row = PanelSupport.make_placeholder_row(
 			_ui_theme,
 			ITEM_ROW_HEIGHT,
@@ -1305,15 +1328,14 @@ func _render_item_rows(node: Node, summaries: Dictionary) -> void:
 		)
 		_items_box.add_child(_rendered_placeholder_row)
 
-	if _scroll_to_top_on_render:
+	var selected_row := _rendered_row_for_index(selected_index)
+	if _scroll_to_top_on_render or bool(_item_list_model.get("snap_to_top", false)):
 		_scroll_to_top_on_render = false
 		_queue_scroll_top()
-		return
-
-	if selected_row != null:
+	elif selected_row != null:
 		_queue_scroll_control_visible(selected_row)
-	elif _rendered_placeholder_row != null and is_instance_valid(_rendered_placeholder_row):
-		_queue_scroll_control_visible(_rendered_placeholder_row)
+	_debug_log_list_model("render-rows")
+	_debug_queue_scroll_report("render-rows")
 
 
 func _cycle_sort_mode() -> void:
@@ -1326,19 +1348,25 @@ func _cycle_sort_mode() -> void:
 
 func _reset_view_for_target_change(target_id: int) -> void:
 	_item_list.reset_target(target_id)
+	_item_list_model.clear()
 	_visible_item_names.clear()
 	_rendered_row_start = -1
 	_rendered_row_end = -1
 	_scroll_to_top_on_render = true
+	_debug_append_cursor_log("[ContainerPeek][Reset] target-change id=%d" % target_id)
 
 
 func _reset_view_for_sort_change() -> void:
 	if _current_target_id != -1:
-		_item_list.reset_target(_current_target_id)
+		_item_list.reset_for_sort_change(_current_target_id)
+	_item_list_model.clear()
 	_visible_item_names.clear()
 	_rendered_row_start = -1
 	_rendered_row_end = -1
 	_scroll_to_top_on_render = true
+	_debug_append_cursor_log(
+		"[ContainerPeek][Reset] sort-change id=%d mode=%d" % [_current_target_id, _sort_mode]
+	)
 
 
 func _store_sort_mode() -> void:
@@ -1529,13 +1557,13 @@ func _scroll_control_visible(control: Control) -> void:
 
 
 func _debug_queue_scroll_report(reason: String) -> void:
-	if not DEBUG_SCROLL_LOG:
+	if not DEBUG_CURSOR_LOG:
 		return
 	call_deferred("_debug_report_scroll_state", reason)
 
 
 func _debug_report_scroll_state(reason: String) -> void:
-	if not DEBUG_SCROLL_LOG:
+	if not DEBUG_CURSOR_LOG:
 		return
 	if _item_scroll == null or _items_box == null:
 		return
@@ -1543,8 +1571,8 @@ func _debug_report_scroll_state(reason: String) -> void:
 		return
 
 	var selected_index := -1
-	if not _visible_item_names.is_empty():
-		selected_index = _item_list.selected_index(_current_target_id, _visible_item_names)
+	if not _item_list_model.is_empty():
+		selected_index = int(_item_list_model.get("selected_index", -1))
 	var selected_row := _rendered_row_for_index(selected_index)
 	var viewport_height := _item_scroll.size.y
 	if viewport_height <= 0.0:
@@ -1619,10 +1647,10 @@ func _debug_report_scroll_state(reason: String) -> void:
 				scroll_page,
 			]
 		)
-		_debug_append_scroll_log(line)
+		_debug_append_cursor_log(line)
 
 	if selected_row == null:
-		_debug_append_scroll_log(
+		_debug_append_cursor_log(
 			"[ContainerPeek][Scroll] selected row missing from rendered window"
 		)
 		return
@@ -1630,7 +1658,7 @@ func _debug_report_scroll_state(reason: String) -> void:
 	var visible_top := float(_item_scroll.scroll_vertical)
 	var visible_bottom := visible_top + viewport_height
 	if selected_top < visible_top or selected_bottom > visible_bottom:
-		_debug_append_scroll_log(
+		_debug_append_cursor_log(
 			(
 				"[ContainerPeek][Scroll] selected row not visible after scroll "
 				+ "visible_top=%.1f visible_bottom=%.1f" % [visible_top, visible_bottom]
@@ -1638,14 +1666,45 @@ func _debug_report_scroll_state(reason: String) -> void:
 		)
 
 
-func _debug_append_scroll_log(line: String) -> void:
-	var file := FileAccess.open(DEBUG_SCROLL_LOG_PATH, FileAccess.READ_WRITE)
+func _debug_append_cursor_log(line: String) -> void:
+	if not DEBUG_CURSOR_LOG:
+		return
+
+	var file := FileAccess.open(DEBUG_CURSOR_LOG_PATH, FileAccess.READ_WRITE)
 	if file == null:
-		file = FileAccess.open(DEBUG_SCROLL_LOG_PATH, FileAccess.WRITE)
+		file = FileAccess.open(DEBUG_CURSOR_LOG_PATH, FileAccess.WRITE)
 	if file == null:
 		return
 	file.seek_end()
 	file.store_line(line)
+
+
+func _debug_log_list_model(reason: String) -> void:
+	if not DEBUG_CURSOR_LOG or _item_list_model.is_empty():
+		return
+
+	_debug_append_cursor_log(
+		(
+			(
+				"[ContainerPeek][Model] %s id=%d selected='%s' index=%d viewport_row=%d "
+				+ "window=%d..%d visible=%d rendered=%d anchored=%s full=%s placeholder=%s"
+			)
+			% [
+				reason,
+				_current_target_id,
+				str(_item_list_model.get("selected_name", "")),
+				int(_item_list_model.get("selected_index", -1)),
+				int(_item_list_model.get("selected_viewport_row", -1)),
+				int(_item_list_model.get("window_start", 0)),
+				int(_item_list_model.get("window_end", 0)),
+				_visible_item_names.size(),
+				(_item_list_model.get("rendered_names", []) as Array).size(),
+				str(_item_list_model.get("anchored", false)),
+				str(_item_list_model.get("viewport_full", false)),
+				str(_item_list_model.get("render_placeholder", false)),
+			]
+		)
+	)
 
 
 func _debug_capture_scroll_control(control: Control) -> void:
@@ -1755,7 +1814,7 @@ func _debug_name(node: Node) -> String:
 
 
 func _current_selected_item_name() -> String:
-	return _item_list.selected_name(_current_target_id, _visible_item_names)
+	return str(_item_list_model.get("selected_name", ""))
 
 
 func _current_target_is_loading() -> bool:
@@ -1792,6 +1851,7 @@ func _try_take_all_selected_container() -> bool:
 
 	if moved_any and _current_target_id != -1:
 		_item_list.reset_target(_current_target_id)
+		_item_list_model.clear()
 		_invalidate_summary_cache()
 		_last_render_target_id = -1
 	return moved_any
