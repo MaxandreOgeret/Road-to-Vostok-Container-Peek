@@ -61,6 +61,30 @@ Last verified against the decompiled game data currently in this repository, whi
   - Loaded mags or guns weigh less or more than the base game tooltip/UI.
   - Attachments or nested armor stop affecting displayed weight.
 
+### Slot Value Calculation
+
+- Local code:
+  - `ContainerPeek/ItemSupport.gd` `slot_total_value`
+- Upstream source:
+  - `res://Scripts/Item.gd`
+  - `Value()`
+- What is mirrored:
+  - Base value starts from `slotData.itemData.value`.
+  - `Ammo` and `Matches` scale by `slotData.amount / slotData.itemData.defaultAmount`.
+  - `Magazine` adds loaded ammo value from `slotData.itemData.compatible[0]`.
+  - `Weapon` adds loaded ammo value from `slotData.itemData.ammo`.
+  - Chambered weapons add one extra round.
+  - All non-`Electronics` items are multiplied by `slotData.condition * 0.01`.
+  - `Cat` becomes zero value when `gameData.catDead` is true.
+  - All `slotData.nested` item values are added.
+  - Final value is rounded with `roundf(...)`.
+- Why this matters:
+  - Peek prices should match the game's tooltip and inventory totals instead of drifting from live ammo, condition, or nested-item value changes.
+- Signs this is stale:
+  - The value column disagrees with the vanilla tooltip.
+  - Damaged non-electronics keep showing full price.
+  - Loaded magazines or weapons do not gain value from inserted rounds.
+
 ### Summary Amount Semantics
 
 - Local code:

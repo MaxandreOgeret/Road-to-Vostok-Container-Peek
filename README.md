@@ -16,7 +16,7 @@
 
 The mod follows the game's own interaction logic instead of running a separate container scan. It uses the live interactor target, respects the container's interaction range when that information is available, and falls back to `2.5m` when it is not. The peek window hides when the game is paused so it does not overlap the pause menu.
 
-The loot window shows item names, total displayed weight, and condition in a compact table with a fixed header and a real scrollbar. Rarity colors can be enabled for item names, and the selected row keeps its rarity color instead of switching to a neutral highlight color.
+The loot window shows item names, total displayed weight, condition, and value in a compact table with a fixed header and a real scrollbar. Rarity colors can be enabled for item names, and the selected row keeps its rarity color instead of switching to a neutral highlight color.
 
 The mod also supports an optional rummaging system for first-time inspection. When rummaging is enabled, grouped item rows are revealed over time with a spinner, a single skeleton placeholder row, and optional audio. Corpse rummaging uses dedicated bundled sounds, while other containers keep the existing game-based audio behavior. By default, the mod stays enabled in shelters, but rummaging is skipped there and the full contents are shown immediately unless that behavior is changed in Mod Configuration Menu.
 
@@ -24,7 +24,7 @@ Take behavior is designed to stay close to the base game. You can take the selec
 
 ## Controls
 
-By default, the mouse wheel moves the selection in the loot list, `F` takes the selected entry to your inventory, `R` takes everything from the current container, and `V` cycles sorting between name, rarity, and weight. These bindings can be changed in Mod Configuration Menu when MCM is installed.
+By default, the mouse wheel moves the selection in the loot list, `F` takes the selected entry to your inventory, `R` takes everything from the current container, and `V` cycles sorting between name, rarity, weight, and value. These bindings can be changed in Mod Configuration Menu when MCM is installed.
 
 ## Behavior Notes
 
@@ -51,7 +51,7 @@ When Mod Configuration Menu is installed, the mod exposes settings for the trans
 
 ## Repository Layout
 
-The packaged mod consists of `mod.txt` and the `ContainerPeek/` directory. The runtime logic is split across `ContainerPeek/Main.gd`, which handles scene lifecycle, state, and transfer flow; `ContainerPeek/PanelSupport.gd`, which builds and styles the peek UI; `ContainerPeek/TargetSupport.gd`, which handles target and HUD prompt helpers; `ContainerPeek/Config.gd`, which registers the MCM settings and input actions; `ContainerPeek/ConfigSupport.gd`, which provides runtime configuration helpers; `ContainerPeek/ItemSupport.gd`, which handles item summaries, rarity, weight, condition, and selection helpers; and `ContainerPeek/Compat/XPSkillsCompat.gd`, which contains the optional XP & Skills integration.
+The packaged mod consists of `mod.txt` and the `ContainerPeek/` directory. The runtime logic is split across `ContainerPeek/Main.gd`, which handles scene lifecycle, state, and transfer flow; `ContainerPeek/PanelSupport.gd`, which builds and styles the peek UI; `ContainerPeek/TargetSupport.gd`, which handles target and HUD prompt helpers; `ContainerPeek/Config.gd`, which registers the MCM settings and input actions; `ContainerPeek/ConfigSupport.gd`, which provides runtime configuration helpers; `ContainerPeek/ItemSupport.gd`, which handles item summaries, rarity, weight, value, condition, and selection helpers; and `ContainerPeek/Compat/XPSkillsCompat.gd`, which contains the optional XP & Skills integration.
 
 The repository also includes [doc/game-sync.md](doc/game-sync.md), which documents the parts of the mod that intentionally mirror decompiled game logic and should be reviewed after a game update.
 

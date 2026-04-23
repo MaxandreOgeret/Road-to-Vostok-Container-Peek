@@ -15,11 +15,11 @@ The goal is simple: faster looting, less menu friction, and better flow.
 - Compact loot preview window for containers in range
 - Fixed table header with a real scrollable list
 - Native-style item category icons with an optional toggle
-- Weight and condition columns
+- Weight, condition, and value columns
 - Mouse wheel row selection
 - `F` to take the selected item
 - `R` to take all
-- `V` to cycle sorting by name, rarity, and weight
+- `V` to cycle sorting by name, rarity, weight, and value
 - Optional rarity-colored item names
 - Optional rummaging behavior for slower first inspection
 - Optional compatibility with XP & Skills System
