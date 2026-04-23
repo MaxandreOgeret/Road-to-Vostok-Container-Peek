@@ -173,7 +173,8 @@ func _build_default_config() -> ConfigFile:
 			String(SORT_ACTION),
 			{
 				"name": "Cycle Sort",
-				"tooltip": "Cycle the preview list between name, rarity, and weight sorting.",
+				"tooltip":
+				"Cycle the preview list between name, rarity, weight, and value sorting.",
 				"default": KEY_V,
 				"default_type": "Key",
 				"value": KEY_V,

@@ -1,6 +1,9 @@
 extends RefCounted
 
 const RARITY_COMMON := "Common"
+const GAME_DATA_RES := "res://Resources/GameData.tres"
+
+static var _game_data: Resource
 
 
 static func item_summaries(node: Node) -> Dictionary:
@@ -11,6 +14,7 @@ static func item_summaries(node: Node) -> Dictionary:
 			result[item_name] = {
 				"amount": 0,
 				"weight": 0.0,
+				"value": 0,
 				"condition_values": [],
 				"rarity": RARITY_COMMON,
 				"type": "",
@@ -20,6 +24,7 @@ static func item_summaries(node: Node) -> Dictionary:
 		var amount := slot_summary_amount(slot)
 		summary["amount"] = int(summary.get("amount", 0)) + amount
 		summary["weight"] = float(summary.get("weight", 0.0)) + slot_total_weight(node, slot)
+		summary["value"] = int(summary.get("value", 0)) + slot_total_value(slot)
 		summary["rarity"] = slot_rarity(slot)
 		if str(summary.get("type", "")).is_empty():
 			summary["type"] = slot_type(slot)
@@ -177,6 +182,96 @@ static func slot_total_weight(_container_node: Node, slot: Variant) -> float:
 	return maxf(0.0, snappedf(weight, 0.01))
 
 
+static func slot_total_value(slot: Variant) -> int:
+	# Mirrors res://Scripts/Item.gd Value() so peek prices match the game's live
+	# tooltip/inventory calculation instead of relying on raw itemData.value alone.
+	var item := slot_item(slot)
+	if item == null:
+		return 0
+
+	var value := numeric_property(
+		item,
+		[
+			&"value",
+		]
+	)
+	var item_type := str(property_value(item, &"type")).strip_edges()
+	var item_subtype := str(property_value(item, &"subtype")).strip_edges()
+	var item_file := str(property_value(item, &"file")).strip_edges()
+	var loaded_amount := slot_raw_amount(slot)
+
+	if item_type == "Ammo" or item_file == "Matches":
+		var default_amount := numeric_property(
+			item,
+			[
+				&"defaultAmount",
+			]
+		)
+		if default_amount > 0.0:
+			value *= loaded_amount / default_amount
+
+	if item_subtype == "Magazine" and loaded_amount != 0.0:
+		var compatible := property_value(item, &"compatible")
+		if compatible is Array and not (compatible as Array).is_empty():
+			var ammo_data: Variant = (compatible as Array)[0]
+			var ammo_default_amount := numeric_property(
+				ammo_data,
+				[
+					&"defaultAmount",
+				]
+			)
+			if ammo_default_amount > 0.0:
+				var value_per_round := (
+					numeric_property(
+						ammo_data,
+						[
+							&"value",
+						]
+					)
+					/ ammo_default_amount
+				)
+				value += value_per_round * loaded_amount
+
+	if item_type == "Weapon" and (loaded_amount != 0.0 or slot_chambered(slot)):
+		var ammo_data := property_value(item, &"ammo")
+		var ammo_default_amount := numeric_property(
+			ammo_data,
+			[
+				&"defaultAmount",
+			]
+		)
+		if ammo_default_amount > 0.0:
+			var value_per_round := (
+				numeric_property(
+					ammo_data,
+					[
+						&"value",
+					]
+				)
+				/ ammo_default_amount
+			)
+			var total_ammo_value := value_per_round * loaded_amount
+			if slot_chambered(slot):
+				total_ammo_value += value_per_round
+			value += total_ammo_value
+
+	if item_type != "Electronics":
+		value *= slot_condition_ratio(slot)
+
+	if item_file == "Cat" and _cat_dead():
+		value = 0.0
+
+	for nested in slot_nested(slot):
+		value += numeric_property(
+			nested,
+			[
+				&"value",
+			]
+		)
+
+	return maxi(0, int(roundf(value)))
+
+
 static func property_value(target: Variant, key: StringName) -> Variant:
 	if target == null:
 		return null
@@ -266,6 +361,22 @@ static func slot_condition_percent(slot: Variant) -> int:
 	return -1
 
 
+static func slot_condition_ratio(slot: Variant) -> float:
+	var raw: Variant = null
+	if slot is Object:
+		raw = (slot as Object).get("condition")
+	elif slot is Dictionary:
+		raw = (slot as Dictionary).get("condition", null)
+
+	if raw is float:
+		var condition := float(raw)
+		return clampf(condition * 0.01 if condition > 1.0 else condition, 0.0, 1.0)
+	if raw is int:
+		var condition_int := float(raw)
+		return clampf(condition_int * 0.01 if condition_int > 1.0 else condition_int, 0.0, 1.0)
+	return 1.0
+
+
 static func slot_shows_condition(slot: Variant) -> bool:
 	# Mirrors the condition visibility rules used by res://Scripts/Item.gd and
 	# res://Scripts/Tooltip.gd for weapons, armor, helmets, armored rigs, and showCondition items.
@@ -306,6 +417,10 @@ static func normalize_condition_percent(value: float) -> int:
 
 static func format_weight(weight: float) -> String:
 	return "%.1fkg" % maxf(0.0, weight)
+
+
+static func format_value(value: int) -> String:
+	return "%d€" % maxi(0, value)
 
 
 static func format_condition(values: Array) -> String:
@@ -471,3 +586,15 @@ static func set_slot_amount(slot: Variant, amount: int) -> void:
 		(slot as Object).set("amount", clamped_amount)
 	elif slot is Dictionary:
 		(slot as Dictionary)["amount"] = clamped_amount
+
+
+static func _cat_dead() -> bool:
+	if not ResourceLoader.exists(GAME_DATA_RES):
+		return false
+	if _game_data == null:
+		_game_data = load(GAME_DATA_RES) as Resource
+	if _game_data == null:
+		return false
+
+	var cat_dead: Variant = _game_data.get("catDead")
+	return cat_dead != null and bool(cat_dead)

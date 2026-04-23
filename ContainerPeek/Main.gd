@@ -38,6 +38,7 @@ const ITEM_COL_MIN_WIDTH := 120.0
 const COL_SEPARATION := 8
 const WEIGHT_COL_WIDTH := 56.0
 const CONDITION_COL_WIDTH := 62.0
+const VALUE_COL_WIDTH := 60.0
 const ROW_WINDOW_OVERSCAN := 2
 const TRANSFER_ACTION := &"container_peek_transfer"
 const TAKE_ALL_ACTION := &"container_peek_take_all"
@@ -60,6 +61,7 @@ const RUMMAGE_AUDIO_END_PAD := 0.05
 const SORT_MODE_NAME := 0
 const SORT_MODE_RARITY := 1
 const SORT_MODE_WEIGHT := 2
+const SORT_MODE_VALUE := 3
 const SORT_MODE_SECTION := "State"
 const SORT_MODE_KEY := "sort_mode"
 const SCROLL_REQUEST_NONE := 0
@@ -133,6 +135,7 @@ var _ui_theme: Theme
 var _ui_tile: Texture2D
 var _category_icons: Dictionary = {}
 var _item_font: Font
+var _numeric_font: Font
 var _item_font_size := 13
 var _item_text_width_cache: Dictionary = {}
 var _interactor: RayCast3D
@@ -151,7 +154,7 @@ func _ready() -> void:
 	_sort_mode = clampi(
 		ConfigSupport.int_setting(self, SORT_MODE_SECTION, SORT_MODE_KEY, SORT_MODE_NAME),
 		SORT_MODE_NAME,
-		SORT_MODE_WEIGHT
+		SORT_MODE_VALUE
 	)
 
 
@@ -294,7 +297,9 @@ func _build_ui(host: Node) -> void:
 		ITEM_COL_MIN_WIDTH,
 		COL_SEPARATION,
 		WEIGHT_COL_WIDTH,
-		CONDITION_COL_WIDTH
+		CONDITION_COL_WIDTH,
+		VALUE_COL_WIDTH,
+		_numeric_column_font()
 	)
 	_header_item_label = header_data.get("item_label", null) as Label
 	_header_row = header_data.get("row") as Control
@@ -570,6 +575,7 @@ func _teardown_runtime() -> void:
 	_corpse_rummage_stream = null
 	_corpse_zipper_streams.clear()
 	_item_font = null
+	_numeric_font = null
 	_item_text_width_cache.clear()
 	_selected_row_style = null
 	_plain_row_style = null
@@ -711,7 +717,9 @@ func _rebuild_header_row() -> void:
 		maxf(_cached_item_col_width, ITEM_COL_MIN_WIDTH),
 		COL_SEPARATION,
 		WEIGHT_COL_WIDTH,
-		CONDITION_COL_WIDTH
+		CONDITION_COL_WIDTH,
+		VALUE_COL_WIDTH,
+		_numeric_column_font()
 	)
 	_header_item_label = header_data.get("item_label", null) as Label
 	_header_row = header_data.get("row") as Control
@@ -1154,11 +1162,12 @@ func _summaries_signature(summaries: Dictionary) -> String:
 	for item_name in names:
 		var summary := summaries[item_name] as Dictionary
 		signature += (
-			"%s|%d|%.3f|%s|%s|%s\n"
+			"%s|%d|%.3f|%d|%s|%s|%s\n"
 			% [
 				str(item_name),
 				int(summary.get("amount", 0)),
 				float(summary.get("weight", 0.0)),
+				int(summary.get("value", 0)),
 				str(summary.get("condition", "")),
 				str(summary.get("rarity", ItemSupport.RARITY_COMMON)),
 				str(summary.get("type", "")),
@@ -1312,6 +1321,7 @@ func _render_item_rows(node: Node, summaries: Dictionary) -> void:
 				COL_SEPARATION,
 				WEIGHT_COL_WIDTH,
 				CONDITION_COL_WIDTH,
+				VALUE_COL_WIDTH,
 				0,
 				ITEM_COL_MIN_WIDTH,
 				_placeholder_blocks,
@@ -1388,12 +1398,14 @@ func _render_item_rows(node: Node, summaries: Dictionary) -> void:
 			COL_SEPARATION,
 			WEIGHT_COL_WIDTH,
 			CONDITION_COL_WIDTH,
+			VALUE_COL_WIDTH,
 			_row_style(true),
 			_row_style(false),
 			line_text,
 			item_col_width,
 			ItemSupport.format_weight(float(summary.get("weight", 0.0))),
 			str(summary.get("condition", "--")),
+			ItemSupport.format_value(int(summary.get("value", 0))),
 			ItemSupport.rarity_color(
 				str(summary.get("rarity", ItemSupport.RARITY_COMMON)),
 				_rarity_colors_enabled(),
@@ -1401,7 +1413,8 @@ func _render_item_rows(node: Node, summaries: Dictionary) -> void:
 			),
 			i == selected_index,
 			row_icon,
-			show_row_icon
+			show_row_icon,
+			_numeric_column_font()
 		)
 		row.set_meta(&"peek_item_index", i)
 		_rendered_item_rows.append(row)
@@ -1419,6 +1432,7 @@ func _render_item_rows(node: Node, summaries: Dictionary) -> void:
 			COL_SEPARATION,
 			WEIGHT_COL_WIDTH,
 			CONDITION_COL_WIDTH,
+			VALUE_COL_WIDTH,
 			visible_names.size(),
 			item_col_width,
 			_placeholder_blocks,
@@ -1458,7 +1472,7 @@ func _render_item_rows(node: Node, summaries: Dictionary) -> void:
 
 
 func _cycle_sort_mode() -> void:
-	_sort_mode = posmod(_sort_mode + 1, 3)
+	_sort_mode = posmod(_sort_mode + 1, SORT_MODE_VALUE + 1)
 	_store_sort_mode()
 	_refresh_hint_if_needed()
 	_reset_view_for_sort_change()
@@ -1504,6 +1518,8 @@ func _sort_mode_label() -> String:
 			return "Rarity"
 		SORT_MODE_WEIGHT:
 			return "Weight"
+		SORT_MODE_VALUE:
+			return "Value"
 		_:
 			return "Name"
 
@@ -1538,6 +1554,11 @@ func _item_name_less(a: String, b: String, summaries: Dictionary) -> bool:
 			var b_weight := float(b_summary.get("weight", 0.0))
 			if not is_equal_approx(a_weight, b_weight):
 				return a_weight > b_weight
+		SORT_MODE_VALUE:
+			var a_value := int(a_summary.get("value", 0))
+			var b_value := int(b_summary.get("value", 0))
+			if a_value != b_value:
+				return a_value > b_value
 		_:
 			pass
 	return a.nocasecmp_to(b) < 0
@@ -1600,6 +1621,25 @@ func _item_row_font() -> Font:
 	_item_font = probe.get_theme_font("font")
 	_item_font_size = probe.get_theme_font_size("font_size")
 	return _item_font
+
+
+func _numeric_column_font() -> Font:
+	if _numeric_font != null:
+		return _numeric_font
+
+	var base_font := _item_row_font()
+	if base_font == null:
+		return null
+
+	var text_server := TextServerManager.get_primary_interface()
+	if text_server == null:
+		return base_font
+
+	var numeric_font := FontVariation.new()
+	numeric_font.base_font = base_font
+	numeric_font.opentype_features = {text_server.name_to_tag("tnum"): 1}
+	_numeric_font = numeric_font
+	return _numeric_font
 
 
 func _set_item_column_width(item_col_width: float) -> void:

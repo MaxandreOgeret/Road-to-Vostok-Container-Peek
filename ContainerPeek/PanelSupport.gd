@@ -57,7 +57,8 @@ static func _label(
 	font_color: Color,
 	width: float = 0.0,
 	align: HorizontalAlignment = HORIZONTAL_ALIGNMENT_LEFT,
-	expand: bool = false
+	expand: bool = false,
+	font_override: Font = null
 ) -> Label:
 	var label := Label.new()
 	label.theme = ui_theme
@@ -67,6 +68,8 @@ static func _label(
 	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	label.add_theme_font_size_override("font_size", font_size)
 	label.add_theme_color_override("font_color", font_color)
+	if font_override != null:
+		label.add_theme_font_override("font", font_override)
 	if width > 0.0:
 		label.custom_minimum_size = Vector2(width, 0.0)
 	if expand:
@@ -88,7 +91,9 @@ static func make_header_row(
 	item_col_min_width: float,
 	col_separation: int,
 	weight_col_width: float,
-	condition_col_width: float
+	condition_col_width: float,
+	value_col_width: float,
+	numeric_font: Font = null
 ) -> Dictionary:
 	var row := _row_box(col_separation)
 	var dim := Color(1.0, 1.0, 1.0, 0.5)
@@ -100,9 +105,41 @@ static func make_header_row(
 		ui_theme, "Item", 11, dim, item_col_min_width, HORIZONTAL_ALIGNMENT_LEFT, true
 	)
 	row.add_child(item_label)
-	row.add_child(_label(ui_theme, "Weight", 11, dim, weight_col_width, HORIZONTAL_ALIGNMENT_RIGHT))
 	row.add_child(
-		_label(ui_theme, "Cond.", 11, dim, condition_col_width, HORIZONTAL_ALIGNMENT_RIGHT)
+		_label(
+			ui_theme,
+			"Weight",
+			11,
+			dim,
+			weight_col_width,
+			HORIZONTAL_ALIGNMENT_RIGHT,
+			false,
+			numeric_font
+		)
+	)
+	row.add_child(
+		_label(
+			ui_theme,
+			"Cond.",
+			11,
+			dim,
+			condition_col_width,
+			HORIZONTAL_ALIGNMENT_RIGHT,
+			false,
+			numeric_font
+		)
+	)
+	row.add_child(
+		_label(
+			ui_theme,
+			"Value",
+			11,
+			dim,
+			value_col_width,
+			HORIZONTAL_ALIGNMENT_RIGHT,
+			false,
+			numeric_font
+		)
 	)
 
 	return {"row": row, "item_label": item_label}
@@ -174,6 +211,7 @@ static func make_placeholder_row(
 	col_separation: int,
 	weight_col_width: float,
 	condition_col_width: float,
+	value_col_width: float,
 	index: int,
 	item_col_width: float,
 	placeholder_blocks: Array,
@@ -217,6 +255,7 @@ static func make_placeholder_row(
 
 	box.add_child(make_placeholder_bar(weight_col_width - 12.0, placeholder_blocks, tint))
 	box.add_child(make_placeholder_bar(condition_col_width - 14.0, placeholder_blocks, tint))
+	box.add_child(make_placeholder_bar(value_col_width - 12.0, placeholder_blocks, tint))
 
 	return row
 
@@ -238,16 +277,19 @@ static func make_item_row(
 	col_separation: int,
 	weight_col_width: float,
 	condition_col_width: float,
+	value_col_width: float,
 	selected_style: StyleBox,
 	plain_style: StyleBox,
 	text: String,
 	item_col_width: float,
 	weight_text: String,
 	condition_text: String,
+	value_text: String,
 	rarity_color: Color,
 	selected: bool,
 	left_icon: Texture2D,
-	show_left_icon: bool
+	show_left_icon: bool,
+	numeric_font: Font = null
 ) -> Control:
 	var row := PanelContainer.new()
 	row.theme = ui_theme
@@ -309,7 +351,9 @@ static func make_item_row(
 		12,
 		bright if selected else dim,
 		weight_col_width,
-		HORIZONTAL_ALIGNMENT_RIGHT
+		HORIZONTAL_ALIGNMENT_RIGHT,
+		false,
+		numeric_font
 	)
 	box.add_child(weight_label)
 
@@ -319,14 +363,29 @@ static func make_item_row(
 		12,
 		bright if selected else dim,
 		condition_col_width,
-		HORIZONTAL_ALIGNMENT_RIGHT
+		HORIZONTAL_ALIGNMENT_RIGHT,
+		false,
+		numeric_font
 	)
 	box.add_child(condition_label)
+
+	var value_label := _label(
+		ui_theme,
+		value_text,
+		12,
+		bright if selected else dim,
+		value_col_width,
+		HORIZONTAL_ALIGNMENT_RIGHT,
+		false,
+		numeric_font
+	)
+	box.add_child(value_label)
 
 	row.set_meta(&"peek_prefix_label", prefix_label)
 	row.set_meta(&"peek_name_label", name_label)
 	row.set_meta(&"peek_weight_label", weight_label)
 	row.set_meta(&"peek_condition_label", condition_label)
+	row.set_meta(&"peek_value_label", value_label)
 	row.set_meta(&"peek_rarity_color", rarity_color)
 
 	return row
@@ -364,5 +423,11 @@ static func apply_item_row_selection(
 	var condition_label := row.get_meta(&"peek_condition_label", null)
 	if condition_label is Label:
 		(condition_label as Label).add_theme_color_override(
+			"font_color", Color(1.0, 1.0, 1.0, 1.0) if selected else Color(1.0, 1.0, 1.0, 0.66)
+		)
+
+	var value_label := row.get_meta(&"peek_value_label", null)
+	if value_label is Label:
+		(value_label as Label).add_theme_color_override(
 			"font_color", Color(1.0, 1.0, 1.0, 1.0) if selected else Color(1.0, 1.0, 1.0, 0.66)
 		)
