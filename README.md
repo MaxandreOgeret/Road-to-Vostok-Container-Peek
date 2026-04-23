@@ -67,6 +67,14 @@ That produces `ContainerPeek.vmz`, which is a regular zip archive with the `.vmz
 
 The build also produces `ContainerPeek.zip`, which is a regular zip file that contains the `.vmz` archive for distribution on sites that expect `.zip` uploads.
 
+Deploy the fresh `.vmz` straight into the local game mods folder with:
+
+```bash
+./scripts/deploy.sh
+```
+
+By default this copies to `~/.steam/debian-installation/steamapps/common/Road to Vostok/mods/`. Override the destination by setting `RTV_MODS_DIR`.
+
 ## CI
 
 GitHub Actions runs linting and build checks on pushes and pull requests:
