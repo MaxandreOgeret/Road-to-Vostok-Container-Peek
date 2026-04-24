@@ -10,11 +10,6 @@ const GAME_DATA_RES := "res://Resources/GameData.tres"
 const AUDIO_INSTANCE_2D_SCENE := preload("res://Resources/AudioInstance2D.tscn")
 const RUMMAGE_AUDIO_EVENT := preload("res://Audio/Crafting/Craft_Generic.tres")
 const CORPSE_RUMMAGE_AUDIO_FILE := "res://ContainerPeek/audio/container_peek_rummage_corpse.mp3"
-const CORPSE_ZIPPER_AUDIO_FILES := [
-	"res://ContainerPeek/audio/container_peek_zipper_0.mp3",
-	"res://ContainerPeek/audio/container_peek_zipper_1.mp3",
-	"res://ContainerPeek/audio/container_peek_zipper_2.mp3",
-]
 const AMMO_ICON_SVG_RES := "res://ContainerPeek/img/ammo.svg"
 const UI_THEME_RES := "res://UI/Themes/Theme.tres"
 const UI_TILE_RES := "res://UI/Sprites/Tile.png"
@@ -138,7 +133,6 @@ var _hud: Node
 var _hud_text_nodes: Array = []
 var _rummage_audio: AudioStreamPlayer
 var _corpse_rummage_stream: AudioStream
-var _corpse_zipper_streams: Array = []
 var _selected_row_style: StyleBox
 var _plain_row_style: StyleBox
 var _scroll_request_id := 0
@@ -588,7 +582,6 @@ func _teardown_runtime() -> void:
 	_hud_text_nodes.clear()
 	_rummage_audio = null
 	_corpse_rummage_stream = null
-	_corpse_zipper_streams.clear()
 	_item_font = null
 	_numeric_font = null
 	_item_text_width_cache.clear()
@@ -957,7 +950,6 @@ func _advance_rummage_progress(container_id: int, total_item_count: int, delta: 
 	var previous_elapsed := float(state.get("elapsed", 0.0))
 	var elapsed := minf(full_duration, previous_elapsed + maxf(0.0, delta))
 	state["elapsed"] = elapsed
-	_maybe_play_rummage_zipper(state, total_item_count, previous_elapsed, elapsed, delay)
 	state["completed"] = elapsed >= full_duration
 	if bool(state.get("completed", false)):
 		_stop_rummage_sound()
@@ -1033,25 +1025,6 @@ func _ensure_rummage_sound_playing() -> void:
 	if _rummage_audio != null and is_instance_valid(_rummage_audio) and _rummage_audio.is_playing():
 		return
 	_play_rummage_sound()
-
-
-func _maybe_play_rummage_zipper(
-	state: Dictionary, total_item_count: int, previous_elapsed: float, elapsed: float, delay: float
-) -> void:
-	if not _is_corpse_focus():
-		return
-	if total_item_count <= 0 or delay <= 0.0:
-		return
-	var previous_revealed := clampi(int(floor(previous_elapsed / delay)), 0, total_item_count)
-	var revealed := clampi(int(floor(elapsed / delay)), 0, total_item_count)
-	if revealed <= previous_revealed:
-		return
-	var last_zipper_reveal := int(state.get("last_zipper_reveal", 0))
-	var start_reveal := maxi(previous_revealed, last_zipper_reveal)
-	for reveal_index in range(start_reveal, revealed):
-		if randf() < 0.1:
-			_play_random_zipper_sound()
-	state["last_zipper_reveal"] = revealed
 
 
 func _play_rummage_sound() -> void:
@@ -1146,33 +1119,6 @@ func _load_corpse_rummage_stream() -> AudioStream:
 	if _corpse_rummage_stream != null:
 		return _corpse_rummage_stream
 	return null
-
-
-func _random_zipper_stream() -> AudioStream:
-	if _corpse_zipper_streams.is_empty():
-		for path in CORPSE_ZIPPER_AUDIO_FILES:
-			var stream := _load_mp3_stream(path)
-			if stream != null:
-				_corpse_zipper_streams.append(stream)
-	if _corpse_zipper_streams.is_empty():
-		return null
-	return _corpse_zipper_streams[randi() % _corpse_zipper_streams.size()] as AudioStream
-
-
-func _play_random_zipper_sound() -> void:
-	var stream := _random_zipper_stream()
-	if stream == null:
-		return
-	var tree := get_tree()
-	if tree == null:
-		return
-	var audio := AudioStreamPlayer.new()
-	if audio == null:
-		return
-	audio.stream = stream
-	tree.get_root().add_child(audio)
-	audio.play()
-	audio.finished.connect(audio.queue_free)
 
 
 func _load_mp3_stream(path: String) -> AudioStreamMP3:

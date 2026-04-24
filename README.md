@@ -103,7 +103,4 @@ The loader format and installation details are documented at <https://github.com
 
 The corpse rummaging audio was sourced from Pixabay:
 
-- <https://pixabay.com/sound-effects/film-special-effects-jackethoodie-zipper-419038/>
-- <https://pixabay.com/sound-effects/film-special-effects-zipper-sound-effect-336780/>
-- <https://pixabay.com/sound-effects/film-special-effects-zipper-95036/>
 - <https://pixabay.com/sound-effects/film-special-effects-woven-nylon-bag-rustling-and-unzipping-62127/>
