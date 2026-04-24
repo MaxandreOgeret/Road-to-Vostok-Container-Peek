@@ -50,6 +50,8 @@ const RUMMAGE_IN_SHELTER_KEY := "rummage_in_shelter"
 const PANEL_OPACITY_KEY := "panel_opacity"
 const XP_SKILLS_COMPAT_KEY := "xp_skills_compat"
 const SHOW_CATEGORY_ICONS_KEY := "show_category_icons"
+const CURSOR_LOG_KEY := "debug_cursor_log"
+const PERFORMANCE_LOG_KEY := "debug_performance_log"
 const RARITY_COMMON_COLOR_KEY := "rarity_common_color"
 const RARITY_RARE_COLOR_KEY := "rarity_rare_color"
 const RARITY_LEGENDARY_COLOR_KEY := "rarity_legendary_color"
@@ -64,8 +66,10 @@ const SORT_MODE_WEIGHT := 2
 const SORT_MODE_VALUE := 3
 const SORT_MODE_SECTION := "State"
 const SORT_MODE_KEY := "sort_mode"
-const DEBUG_CURSOR_LOG := true
 const DEBUG_CURSOR_LOG_PATH := "user://containerpeek_cursor.log"
+const PERFORMANCE_LOG_PATH := "user://containerpeek_perf.log"
+const PERFORMANCE_LOG_SLOW_FRAME_US := 1000
+const SETTINGS_SYNC_INTERVAL_MSEC := 250
 
 var _tracked: Dictionary = {}
 var _game_data: Resource
@@ -138,11 +142,22 @@ var _corpse_zipper_streams: Array = []
 var _selected_row_style: StyleBox
 var _plain_row_style: StyleBox
 var _scroll_request_id := 0
+var _settings_synced_msec := -SETTINGS_SYNC_INTERVAL_MSEC
+var _cursor_log_enabled_current := false
+var _performance_log_enabled_current := false
+var _rarity_colors_enabled_current := true
+var _show_category_icons_current := true
+var _rummage_seconds_per_item_current := 0.5
+var _rummage_audio_enabled_current := true
+var _panel_opacity_current := 0.9
+var _xp_skills_compat_enabled_current := true
+var _rarity_color_map_current := {}
+var _rarity_color_signature_current := ""
 
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	_item_list.set_debug_enabled(DEBUG_CURSOR_LOG, DEBUG_CURSOR_LOG_PATH)
+	_sync_runtime_settings(true)
 	_sort_mode = clampi(
 		ConfigSupport.int_setting(self, SORT_MODE_SECTION, SORT_MODE_KEY, SORT_MODE_NAME),
 		SORT_MODE_NAME,
@@ -216,6 +231,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		if not (node is Node) or _visible_item_names.is_empty():
 			return
 
+		_sync_runtime_settings()
 		_debug_append_cursor_log(
 			(
 				"[ContainerPeek][Input] wheel id=%d dir=%d visible=%d selected='%s'"
@@ -434,7 +450,7 @@ func _hint_text() -> String:
 
 
 func _panel_opacity() -> float:
-	return clampf(ConfigSupport.float_setting(self, PANEL_OPACITY_KEY, 0.9), 0.1, 1.0)
+	return _panel_opacity_current
 
 
 func _try_bootstrap() -> bool:
@@ -616,6 +632,24 @@ func _hide_panel() -> void:
 func _show_panel(data: Dictionary, delta: float) -> void:
 	if _panel == null or _title_label == null:
 		return
+	_sync_runtime_settings()
+	var perf_enabled := _performance_log_enabled_current
+	var panel_start_us := 0
+	var summary_us := 0
+	var derive_us := 0
+	var render_state_us := 0
+	var render_rows_us := 0
+	var loading_us := 0
+	var layout_us := 0
+	var position_us := 0
+	var summary_cache_hit := true
+	var selection_changed := false
+	var rerender_rows := false
+	var visible_count := 0
+	var rendered_count := 0
+	if perf_enabled:
+		panel_start_us = Time.get_ticks_usec()
+		summary_cache_hit = _cached_summary_target_id == int(data.get("id", -1))
 	_refresh_panel_style_if_needed()
 	var next_target_id := int(data.get("id", -1))
 	var target_changed := _current_target_id != next_target_id
@@ -631,9 +665,18 @@ func _show_panel(data: Dictionary, delta: float) -> void:
 	_refresh_header_if_needed()
 
 	if _last_focus_node != null:
+		var summaries_start_us := 0
+		if perf_enabled:
+			summaries_start_us = Time.get_ticks_usec()
 		var summaries := _current_summaries(_last_focus_node)
+		if perf_enabled:
+			summary_us = Time.get_ticks_usec() - summaries_start_us
 		_advance_rummage_progress(_current_target_id, summaries.size(), delta)
+		var rummage_loading := _is_rummage_loading(_current_target_id)
 		_maybe_notify_xp_skills_open(_last_focus_node)
+		var derive_start_us := 0
+		if perf_enabled:
+			derive_start_us = Time.get_ticks_usec()
 		_item_list_model = _item_list.derive_state(
 			_current_target_id,
 			summaries,
@@ -642,24 +685,100 @@ func _show_panel(data: Dictionary, delta: float) -> void:
 			_sort_mode,
 			MAX_VISIBLE_ITEMS
 		)
+		if perf_enabled:
+			derive_us = Time.get_ticks_usec() - derive_start_us
 		_visible_item_names = _item_list_model.get("visible_names", []) as Array
-		var selection_changed := (
+		selection_changed = (
 			int(_item_list_model.get("selected_index", -1)) != _last_render_selection
 		)
-		var render_state := _build_render_state(summaries, _cached_summary_signature)
-		if _should_rerender_rows(render_state) or selection_changed:
+		var render_state_start_us := 0
+		if perf_enabled:
+			render_state_start_us = Time.get_ticks_usec()
+		var render_state := _build_render_state(_cached_summary_signature, rummage_loading)
+		if perf_enabled:
+			render_state_us = Time.get_ticks_usec() - render_state_start_us
+		rerender_rows = _should_rerender_rows(render_state) or selection_changed
+		if rerender_rows:
+			var render_rows_start_us := 0
+			if perf_enabled:
+				render_rows_start_us = Time.get_ticks_usec()
 			_render_item_rows(_last_focus_node, summaries)
+			if perf_enabled:
+				render_rows_us = Time.get_ticks_usec() - render_rows_start_us
 			_last_render_target_id = _current_target_id
 			_remember_render_state(render_state)
 		_last_render_selection = int(_item_list_model.get("selected_index", -1))
-		_update_loading_indicator(summaries.size())
+		var loading_start_us := 0
+		if perf_enabled:
+			loading_start_us = Time.get_ticks_usec()
+		_update_loading_indicator(rummage_loading)
+		if perf_enabled:
+			loading_us = Time.get_ticks_usec() - loading_start_us
+		visible_count = _visible_item_names.size()
+		rendered_count = (_item_list_model.get("rendered_names", []) as Array).size()
 	else:
 		_item_list_model.clear()
-		_update_loading_indicator(0)
+		var loading_start_us := 0
+		if perf_enabled:
+			loading_start_us = Time.get_ticks_usec()
+		_update_loading_indicator(_is_rummage_loading(_current_target_id))
+		if perf_enabled:
+			loading_us = Time.get_ticks_usec() - loading_start_us
 
 	_panel.visible = true
+	var layout_start_us := 0
+	if perf_enabled:
+		layout_start_us = Time.get_ticks_usec()
 	_refresh_layout_if_needed()
+	if perf_enabled:
+		layout_us = Time.get_ticks_usec() - layout_start_us
+	var position_start_us := 0
+	if perf_enabled:
+		position_start_us = Time.get_ticks_usec()
 	_position_panel()
+	if perf_enabled:
+		position_us = Time.get_ticks_usec() - position_start_us
+	var total_us := 0
+	if perf_enabled:
+		total_us = Time.get_ticks_usec() - panel_start_us
+	if (
+		perf_enabled
+		and (
+			target_changed
+			or rerender_rows
+			or selection_changed
+			or not summary_cache_hit
+			or total_us >= PERFORMANCE_LOG_SLOW_FRAME_US
+		)
+	):
+		_debug_append_perf_log(
+			(
+				(
+					"[ContainerPeek][Perf] show-panel id=%d target_changed=%s cache_hit=%s "
+					+ "focus=%s visible=%d rendered=%d selection_changed=%s rerender=%s "
+					+ "summaries_us=%d derive_us=%d render_state_us=%d render_rows_us=%d "
+					+ "loading_us=%d layout_us=%d position_us=%d total_us=%d"
+				)
+				% [
+					_current_target_id,
+					str(target_changed),
+					str(summary_cache_hit),
+					str(_last_focus_node != null),
+					visible_count,
+					rendered_count,
+					str(selection_changed),
+					str(rerender_rows),
+					summary_us,
+					derive_us,
+					render_state_us,
+					render_rows_us,
+					loading_us,
+					layout_us,
+					position_us,
+					total_us,
+				]
+			)
+		)
 
 
 func _refresh_panel_style_if_needed() -> void:
@@ -758,20 +877,31 @@ func _queue_clear_children(node: Node) -> void:
 		child.queue_free()
 
 
-func _build_render_state(summaries: Dictionary, summary_signature: String) -> Dictionary:
+func _build_render_state(summary_signature: String, loading: bool) -> Dictionary:
+	var has_visible_rows := not _visible_item_names.is_empty()
 	return {
-		"visible_count": _visible_item_names.size(),
-		"total_count": summaries.size(),
 		"window_start": int(_item_list_model.get("window_start", 0)),
 		"window_end": int(_item_list_model.get("window_end", 0)),
+		"rendered_names":
+		_rendered_names_signature(_item_list_model.get("rendered_names", []) as Array),
 		"render_placeholder": bool(_item_list_model.get("render_placeholder", false)),
 		"summary_signature": summary_signature,
-		"loading": _is_rummage_loading(_current_target_id),
-		"rarity_colors": _rarity_colors_enabled(),
-		"show_icons": _show_category_icons(),
-		"rarity_signature": _rarity_color_signature(),
+		"loading": loading,
+		"rarity_colors": _rarity_colors_enabled() if has_visible_rows else false,
+		"show_icons": _show_category_icons() if has_visible_rows else false,
+		"rarity_signature": _rarity_color_signature() if has_visible_rows else "",
 		"sort_mode": _sort_mode,
 	}
+
+
+func _rendered_names_signature(rendered_names: Array) -> String:
+	if rendered_names.is_empty():
+		return ""
+
+	var parts := PackedStringArray()
+	for item_name in rendered_names:
+		parts.append(str(item_name))
+	return "\n".join(parts)
 
 
 func _remember_render_state(render_state: Dictionary) -> void:
@@ -870,6 +1000,10 @@ func _rummage_progress_units(total_item_count: int) -> int:
 
 
 func _rummage_seconds_per_item() -> float:
+	return _rummage_seconds_per_item_current
+
+
+func _configured_rummage_seconds_per_item() -> float:
 	if _shelter_bypasses_rummaging():
 		return 0.0
 	return maxf(0.0, ConfigSupport.float_setting(self, RUMMAGE_TIME_KEY, 0.5))
@@ -921,7 +1055,7 @@ func _maybe_play_rummage_zipper(
 
 
 func _play_rummage_sound() -> void:
-	if not ConfigSupport.bool_setting(self, RUMMAGE_AUDIO_KEY, true):
+	if not _rummage_audio_enabled_current:
 		_stop_rummage_sound()
 		return
 
@@ -1067,10 +1201,9 @@ func _loading_spinner_text() -> String:
 	return LOADING_SPINNER_FRAMES[_loading_animation_phase()]
 
 
-func _update_loading_indicator(_total_item_count: int) -> void:
+func _update_loading_indicator(loading: bool) -> void:
 	if _loading_row == null or _loading_label == null or _loading_spinner_label == null:
 		return
-	var loading := _is_rummage_loading(_current_target_id)
 	if not loading:
 		_stop_rummage_sound()
 	_loading_row.modulate = Color(1.0, 1.0, 1.0, 1.0 if loading else 0.0)
@@ -1220,6 +1353,25 @@ func _resolve_container_from_node(node: Node) -> Node3D:
 func _render_item_rows(node: Node, summaries: Dictionary) -> void:
 	if _items_box == null:
 		return
+	var locked := bool(node.get("locked"))
+	var selected_index := int(_item_list_model.get("selected_index", -1))
+	var rendered_names := _item_list_model.get("rendered_names", []) as Array
+	var has_placeholder := _visible_item_names.size() < summaries.size()
+	var render_placeholder := bool(_item_list_model.get("render_placeholder", false))
+	var item_col_width := ITEM_COL_MIN_WIDTH
+	if not summaries.is_empty():
+		item_col_width = _item_name_column_width(summaries)
+		_set_item_column_width(item_col_width)
+		if not locked and not render_placeholder and _can_update_rendered_item_rows(rendered_names):
+			_update_rendered_item_rows(summaries, rendered_names, selected_index, item_col_width)
+			_debug_last_visible_window_size = mini(_visible_item_names.size(), MAX_VISIBLE_ITEMS)
+			_debug_last_render_window_size = rendered_names.size()
+			_rendered_row_start = int(_item_list_model.get("window_start", 0))
+			_rendered_row_end = int(_item_list_model.get("window_end", 0))
+			_debug_log_list_model("update-rows")
+			_debug_queue_scroll_report("update-rows")
+			return
+
 	_rendered_item_rows.clear()
 	_rendered_placeholder_row = null
 	_placeholder_blocks.clear()
@@ -1232,7 +1384,7 @@ func _render_item_rows(node: Node, summaries: Dictionary) -> void:
 	_queue_clear_children(_items_box)
 	_layout_dirty = true
 
-	if bool(node.get("locked")):
+	if locked:
 		_items_box.add_child(
 			PanelSupport.make_row(_ui_theme, _ui_tile, ITEM_ROW_HEIGHT, "LOCKED", false, true)
 		)
@@ -1262,12 +1414,6 @@ func _render_item_rows(node: Node, summaries: Dictionary) -> void:
 			PanelSupport.make_row(_ui_theme, _ui_tile, ITEM_ROW_HEIGHT, "Empty", false, false)
 		)
 		return
-
-	var item_col_width := _item_name_column_width(summaries)
-	_set_item_column_width(item_col_width)
-	var selected_index := int(_item_list_model.get("selected_index", -1))
-	var rendered_names := _item_list_model.get("rendered_names", []) as Array
-	var has_placeholder := _visible_item_names.size() < summaries.size()
 
 	for item_name_variant in rendered_names:
 		var item_name := str(item_name_variant)
@@ -1336,6 +1482,69 @@ func _render_item_rows(node: Node, summaries: Dictionary) -> void:
 		_queue_scroll_control_visible(selected_row)
 	_debug_log_list_model("render-rows")
 	_debug_queue_scroll_report("render-rows")
+
+
+func _can_update_rendered_item_rows(rendered_names: Array) -> bool:
+	if rendered_names.is_empty():
+		return false
+	if _rendered_placeholder_row != null:
+		return false
+	if _rendered_item_rows.size() != rendered_names.size():
+		return false
+	if _items_box == null or _items_box.get_child_count() != rendered_names.size():
+		return false
+	for row_variant in _rendered_item_rows:
+		if not (row_variant is Control):
+			return false
+		var row := row_variant as Control
+		if row == null or not is_instance_valid(row):
+			return false
+	return true
+
+
+func _update_rendered_item_rows(
+	summaries: Dictionary, rendered_names: Array, selected_index: int, item_col_width: float
+) -> void:
+	_layout_dirty = true
+	_rendered_item_rows.clear()
+	for row_index in range(rendered_names.size()):
+		var row := _items_box.get_child(row_index) as Control
+		var item_name := str(rendered_names[row_index])
+		var item_index := _visible_item_names.find(item_name)
+		if item_index < 0:
+			continue
+
+		var summary := summaries[item_name] as Dictionary
+		var item_type := str(summary.get("type", "")).strip_edges()
+		var row_icon := _row_icon_for_item_type(item_type)
+		var amount := int(summary.get("amount", 1))
+		var line_text := "%s x%d" % [item_name, amount] if amount > 1 else item_name
+		PanelSupport.update_item_row(
+			row,
+			item_index == selected_index,
+			_row_style(true),
+			_row_style(false),
+			line_text,
+			item_col_width,
+			ItemSupport.format_weight(float(summary.get("weight", 0.0))),
+			str(summary.get("condition", "--")),
+			ItemSupport.format_value(int(summary.get("value", 0))),
+			ItemSupport.rarity_color(
+				str(summary.get("rarity", ItemSupport.RARITY_COMMON)),
+				_rarity_colors_enabled(),
+				_rarity_color_map()
+			),
+			row_icon,
+			row_icon != null,
+			_icon_col_width(),
+			ITEM_ROW_HEIGHT
+		)
+		row.set_meta(&"peek_item_index", item_index)
+		_rendered_item_rows.append(row)
+
+	var selected_row := _rendered_row_for_index(selected_index)
+	if selected_row != null:
+		_queue_scroll_control_visible(selected_row)
 
 
 func _cycle_sort_mode() -> void:
@@ -1557,13 +1766,13 @@ func _scroll_control_visible(control: Control) -> void:
 
 
 func _debug_queue_scroll_report(reason: String) -> void:
-	if not DEBUG_CURSOR_LOG:
+	if not _cursor_log_enabled_current:
 		return
 	call_deferred("_debug_report_scroll_state", reason)
 
 
 func _debug_report_scroll_state(reason: String) -> void:
-	if not DEBUG_CURSOR_LOG:
+	if not _cursor_log_enabled_current:
 		return
 	if _item_scroll == null or _items_box == null:
 		return
@@ -1667,12 +1876,21 @@ func _debug_report_scroll_state(reason: String) -> void:
 
 
 func _debug_append_cursor_log(line: String) -> void:
-	if not DEBUG_CURSOR_LOG:
+	if not _cursor_log_enabled_current:
 		return
+	_debug_append_log(DEBUG_CURSOR_LOG_PATH, line)
 
-	var file := FileAccess.open(DEBUG_CURSOR_LOG_PATH, FileAccess.READ_WRITE)
+
+func _debug_append_perf_log(line: String) -> void:
+	if not _performance_log_enabled_current:
+		return
+	_debug_append_log(PERFORMANCE_LOG_PATH, line)
+
+
+func _debug_append_log(path: String, line: String) -> void:
+	var file := FileAccess.open(path, FileAccess.READ_WRITE)
 	if file == null:
-		file = FileAccess.open(DEBUG_CURSOR_LOG_PATH, FileAccess.WRITE)
+		file = FileAccess.open(path, FileAccess.WRITE)
 	if file == null:
 		return
 	file.seek_end()
@@ -1680,7 +1898,7 @@ func _debug_append_cursor_log(line: String) -> void:
 
 
 func _debug_log_list_model(reason: String) -> void:
-	if not DEBUG_CURSOR_LOG or _item_list_model.is_empty():
+	if not _cursor_log_enabled_current or _item_list_model.is_empty():
 		return
 
 	_debug_append_cursor_log(
@@ -1727,15 +1945,39 @@ func _debug_capture_scroll_control(control: Control) -> void:
 		_debug_last_scroll_control_role = "control"
 
 
+func _sync_runtime_settings(force: bool = false) -> void:
+	var now := Time.get_ticks_msec()
+	if not force and now - _settings_synced_msec < SETTINGS_SYNC_INTERVAL_MSEC:
+		return
+	_settings_synced_msec = now
+	_cursor_log_enabled_current = ConfigSupport.bool_setting(self, CURSOR_LOG_KEY, false)
+	_performance_log_enabled_current = ConfigSupport.bool_setting(self, PERFORMANCE_LOG_KEY, false)
+	_rarity_colors_enabled_current = ConfigSupport.bool_setting(self, "rarity_colors", true)
+	_show_category_icons_current = ConfigSupport.bool_setting(self, SHOW_CATEGORY_ICONS_KEY, true)
+	_rummage_audio_enabled_current = ConfigSupport.bool_setting(self, RUMMAGE_AUDIO_KEY, true)
+	_panel_opacity_current = clampf(
+		ConfigSupport.float_setting(self, PANEL_OPACITY_KEY, 0.9), 0.1, 1.0
+	)
+	_xp_skills_compat_enabled_current = ConfigSupport.bool_setting(self, XP_SKILLS_COMPAT_KEY, true)
+	_rummage_seconds_per_item_current = _configured_rummage_seconds_per_item()
+	_rarity_color_map_current = _build_rarity_color_map()
+	_rarity_color_signature_current = _build_rarity_color_signature(_rarity_color_map_current)
+	_item_list.set_debug_enabled(_cursor_log_enabled_current, DEBUG_CURSOR_LOG_PATH)
+
+
 func _rarity_colors_enabled() -> bool:
-	return ConfigSupport.bool_setting(self, "rarity_colors", true)
+	return _rarity_colors_enabled_current
 
 
 func _show_category_icons() -> bool:
-	return ConfigSupport.bool_setting(self, SHOW_CATEGORY_ICONS_KEY, true)
+	return _show_category_icons_current
 
 
 func _rarity_color_map() -> Dictionary:
+	return _rarity_color_map_current
+
+
+func _build_rarity_color_map() -> Dictionary:
 	return {
 		"common":
 		ConfigSupport.color_setting(self, RARITY_COMMON_COLOR_KEY, Color(1.0, 1.0, 1.0, 0.78)),
@@ -1746,7 +1988,10 @@ func _rarity_color_map() -> Dictionary:
 
 
 func _rarity_color_signature() -> String:
-	var colors := _rarity_color_map()
+	return _rarity_color_signature_current
+
+
+func _build_rarity_color_signature(colors: Dictionary) -> String:
 	var parts := PackedStringArray()
 	for rarity in ["common", "rare", "legendary"]:
 		var color := colors.get(rarity, Color.WHITE)
@@ -1952,7 +2197,7 @@ func _resolve_ui_root() -> Node:
 
 
 func _xp_skills_compat_enabled() -> bool:
-	return ConfigSupport.bool_setting(self, XP_SKILLS_COMPAT_KEY, true)
+	return _xp_skills_compat_enabled_current
 
 
 func _resolve_inventory_grid(interface_node: Node) -> Node:

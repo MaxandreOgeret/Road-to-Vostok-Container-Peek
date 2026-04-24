@@ -20,6 +20,8 @@ const ENABLE_IN_SHELTER_KEY := "enable_in_shelter"
 const RUMMAGE_IN_SHELTER_KEY := "rummage_in_shelter"
 const PANEL_OPACITY_KEY := "panel_opacity"
 const XP_SKILLS_COMPAT_KEY := "xp_skills_compat"
+const CURSOR_LOG_KEY := "debug_cursor_log"
+const PERFORMANCE_LOG_KEY := "debug_performance_log"
 const RARITY_COMMON_COLOR_KEY := "rarity_common_color"
 const RARITY_RARE_COLOR_KEY := "rarity_rare_color"
 const RARITY_LEGENDARY_COLOR_KEY := "rarity_legendary_color"
@@ -302,6 +304,39 @@ func _build_default_config() -> ConfigFile:
 				"default": true,
 				"value": true,
 				"menu_pos": 46,
+			}
+		)
+	)
+	(
+		config
+		. set_value(
+			"Bool",
+			CURSOR_LOG_KEY,
+			{
+				"name": "Cursor Debug Log",
+				"tooltip":
+				"Write cursor and viewport debug events to user://containerpeek_cursor.log.",
+				"default": false,
+				"value": false,
+				"menu_pos": 47,
+			}
+		)
+	)
+	(
+		config
+		. set_value(
+			"Bool",
+			PERFORMANCE_LOG_KEY,
+			{
+				"name": "Performance Log",
+				"tooltip":
+				(
+					"Write filtered timing data for the peek menu update path to"
+					+ " user://containerpeek_perf.log."
+				),
+				"default": false,
+				"value": false,
+				"menu_pos": 48,
 			}
 		)
 	)

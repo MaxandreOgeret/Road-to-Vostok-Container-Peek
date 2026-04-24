@@ -15,6 +15,7 @@ var _window_start_by_target: Dictionary = {}
 var _anchored_by_target: Dictionary = {}
 var _manual_input_by_target: Dictionary = {}
 var _reveal_state_by_target: Dictionary = {}
+var _visible_names_cache_by_target: Dictionary = {}
 
 
 func set_debug_enabled(enabled: bool, log_path: String) -> void:
@@ -30,6 +31,7 @@ func reset() -> void:
 		or not _anchored_by_target.is_empty()
 		or not _manual_input_by_target.is_empty()
 		or not _reveal_state_by_target.is_empty()
+		or not _visible_names_cache_by_target.is_empty()
 	)
 	_selected_name_by_target.clear()
 	_anchor_row_by_target.clear()
@@ -37,6 +39,7 @@ func reset() -> void:
 	_anchored_by_target.clear()
 	_manual_input_by_target.clear()
 	_reveal_state_by_target.clear()
+	_visible_names_cache_by_target.clear()
 	if had_state:
 		_debug_log("reset-all")
 
@@ -51,6 +54,7 @@ func reset_target(target_id: int) -> void:
 		or _anchored_by_target.has(target_id)
 		or _manual_input_by_target.has(target_id)
 		or _reveal_state_by_target.has(target_id)
+		or _visible_names_cache_by_target.has(target_id)
 	)
 	_selected_name_by_target.erase(target_id)
 	_anchor_row_by_target.erase(target_id)
@@ -58,6 +62,7 @@ func reset_target(target_id: int) -> void:
 	_anchored_by_target.erase(target_id)
 	_manual_input_by_target.erase(target_id)
 	_reveal_state_by_target.erase(target_id)
+	_visible_names_cache_by_target.erase(target_id)
 	if had_state:
 		_debug_log("reset-target id=%d" % target_id)
 
@@ -265,12 +270,51 @@ func _visible_names(
 	revealed_count: int,
 	sort_mode: int
 ) -> Array:
+	var cached := _visible_names_cache_by_target.get(target_id, {}) as Dictionary
+	if (
+		str(cached.get("signature", "")) == summary_signature
+		and int(cached.get("sort_mode", -1)) == sort_mode
+	):
+		var cached_revealed_count := int(cached.get("revealed_count", -1))
+		if cached_revealed_count == revealed_count:
+			return cached.get("names", []) as Array
+		if cached_revealed_count >= 0 and revealed_count > cached_revealed_count:
+			var reveal_order := _reveal_order(target_id, summaries, summary_signature)
+			if revealed_count <= reveal_order.size():
+				var cached_names := (cached.get("names", []) as Array).duplicate()
+				for i in range(cached_revealed_count, revealed_count):
+					_insert_sorted_name(str(reveal_order[i]), cached_names, summaries, sort_mode)
+				_visible_names_cache_by_target[target_id] = {
+					"signature": summary_signature,
+					"revealed_count": revealed_count,
+					"sort_mode": sort_mode,
+					"names": cached_names,
+				}
+				return cached_names
+
 	var names := _revealed_names(target_id, summaries, summary_signature, revealed_count)
 	names.sort_custom(
 		func(a: Variant, b: Variant) -> bool:
 			return _item_name_less(str(a), str(b), summaries, sort_mode)
 	)
+	_visible_names_cache_by_target[target_id] = {
+		"signature": summary_signature,
+		"revealed_count": revealed_count,
+		"sort_mode": sort_mode,
+		"names": names,
+	}
 	return names
+
+
+func _insert_sorted_name(
+	item_name: String, names: Array, summaries: Dictionary, sort_mode: int
+) -> void:
+	var insert_at := names.size()
+	for i in range(names.size()):
+		if _item_name_less(item_name, str(names[i]), summaries, sort_mode):
+			insert_at = i
+			break
+	names.insert(insert_at, item_name)
 
 
 func _revealed_names(

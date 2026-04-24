@@ -305,28 +305,10 @@ static func make_item_row(
 	icon_slot.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	icon_slot.custom_minimum_size = Vector2(icon_col_width, float(item_row_height))
 	box.add_child(icon_slot)
+	row.set_meta(&"peek_icon_slot", icon_slot)
 
 	if left_icon != null and show_left_icon:
-		var icon_margin := MarginContainer.new()
-		icon_margin.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		icon_margin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		icon_margin.size_flags_vertical = Control.SIZE_EXPAND_FILL
-		icon_margin.add_theme_constant_override("margin_left", 1)
-		icon_margin.add_theme_constant_override("margin_top", 1)
-		icon_margin.add_theme_constant_override("margin_right", 1)
-		icon_margin.add_theme_constant_override("margin_bottom", 1)
-		icon_slot.add_child(icon_margin)
-
-		var icon := TextureRect.new()
-		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
-		icon.texture = left_icon
-		icon.modulate = rarity_color
-		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		icon.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		icon.size_flags_vertical = Control.SIZE_EXPAND_FILL
-		icon.custom_minimum_size = Vector2(icon_col_width - 2.0, item_row_height - 2.0)
-		icon_margin.add_child(icon)
+		_set_row_icon(icon_slot, left_icon, rarity_color, icon_col_width, item_row_height)
 
 	var prefix_label := _label(
 		ui_theme,
@@ -387,8 +369,135 @@ static func make_item_row(
 	row.set_meta(&"peek_condition_label", condition_label)
 	row.set_meta(&"peek_value_label", value_label)
 	row.set_meta(&"peek_rarity_color", rarity_color)
+	row.set_meta(&"peek_item_col_width", item_col_width)
 
 	return row
+
+
+static func update_item_row(
+	row: Control,
+	selected: bool,
+	selected_style: StyleBox,
+	plain_style: StyleBox,
+	text: String,
+	item_col_width: float,
+	weight_text: String,
+	condition_text: String,
+	value_text: String,
+	rarity_color: Color,
+	left_icon: Texture2D,
+	show_left_icon: bool,
+	icon_col_width: float,
+	item_row_height: int
+) -> void:
+	if row == null or not is_instance_valid(row):
+		return
+	if not (row is PanelContainer):
+		return
+
+	var panel_row := row as PanelContainer
+	panel_row.add_theme_stylebox_override("panel", selected_style if selected else plain_style)
+
+	var prefix_label := row.get_meta(&"peek_prefix_label", null)
+	if prefix_label is Label:
+		(prefix_label as Label).text = ">" if selected else ""
+		(prefix_label as Label).add_theme_color_override(
+			"font_color", Color(1.0, 1.0, 1.0, 1.0) if selected else Color(1.0, 1.0, 1.0, 0.0)
+		)
+
+	var name_label := row.get_meta(&"peek_name_label", null)
+	if name_label is Label:
+		(name_label as Label).text = text
+		(name_label as Label).custom_minimum_size = Vector2(item_col_width, 0.0)
+		(name_label as Label).add_theme_color_override("font_color", rarity_color)
+
+	var dim := Color(1.0, 1.0, 1.0, 0.66)
+	var bright := Color(1.0, 1.0, 1.0, 1.0)
+	var numeric_color := bright if selected else dim
+	var weight_label := row.get_meta(&"peek_weight_label", null)
+	if weight_label is Label:
+		(weight_label as Label).text = weight_text
+		(weight_label as Label).add_theme_color_override("font_color", numeric_color)
+
+	var condition_label := row.get_meta(&"peek_condition_label", null)
+	if condition_label is Label:
+		(condition_label as Label).text = condition_text
+		(condition_label as Label).add_theme_color_override("font_color", numeric_color)
+
+	var value_label := row.get_meta(&"peek_value_label", null)
+	if value_label is Label:
+		(value_label as Label).text = value_text
+		(value_label as Label).add_theme_color_override("font_color", numeric_color)
+
+	var icon_slot := row.get_meta(&"peek_icon_slot", null)
+	if icon_slot is CenterContainer:
+		(icon_slot as CenterContainer).custom_minimum_size = Vector2(
+			icon_col_width, float(item_row_height)
+		)
+		_update_row_icon(
+			icon_slot as CenterContainer,
+			left_icon if show_left_icon else null,
+			rarity_color,
+			icon_col_width,
+			item_row_height
+		)
+
+	row.set_meta(&"peek_rarity_color", rarity_color)
+	row.set_meta(&"peek_item_col_width", item_col_width)
+
+
+static func _set_row_icon(
+	icon_slot: CenterContainer,
+	left_icon: Texture2D,
+	rarity_color: Color,
+	icon_col_width: float,
+	item_row_height: int
+) -> void:
+	var icon_margin := MarginContainer.new()
+	icon_margin.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	icon_margin.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	icon_margin.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	icon_margin.add_theme_constant_override("margin_left", 1)
+	icon_margin.add_theme_constant_override("margin_top", 1)
+	icon_margin.add_theme_constant_override("margin_right", 1)
+	icon_margin.add_theme_constant_override("margin_bottom", 1)
+	icon_slot.add_child(icon_margin)
+
+	var icon := TextureRect.new()
+	icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	icon.texture = left_icon
+	icon.modulate = rarity_color
+	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	icon.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	icon.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	icon.custom_minimum_size = Vector2(icon_col_width - 2.0, item_row_height - 2.0)
+	icon_margin.add_child(icon)
+	icon_slot.set_meta(&"peek_icon_rect", icon)
+
+
+static func _update_row_icon(
+	icon_slot: CenterContainer,
+	left_icon: Texture2D,
+	rarity_color: Color,
+	icon_col_width: float,
+	item_row_height: int
+) -> void:
+	var icon_rect := icon_slot.get_meta(&"peek_icon_rect", null)
+	if left_icon == null:
+		if icon_rect is TextureRect:
+			(icon_rect as TextureRect).texture = null
+			(icon_rect as TextureRect).visible = false
+		return
+
+	if not (icon_rect is TextureRect) or not is_instance_valid(icon_rect):
+		_set_row_icon(icon_slot, left_icon, rarity_color, icon_col_width, item_row_height)
+		return
+
+	var icon := icon_rect as TextureRect
+	icon.texture = left_icon
+	icon.modulate = rarity_color
+	icon.visible = true
 
 
 static func apply_item_row_selection(
