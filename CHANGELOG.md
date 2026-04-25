@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Added Mod Configuration Menu sliders for horizontal position offset, vertical position offset, and UI scale.
+
 ## 1.5.0
 
 - Replaced the rummage text spinner with a rotating native combine icon.

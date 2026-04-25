@@ -46,6 +46,9 @@ const RUMMAGE_AUDIO_KEY := "rummage_audio"
 const ENABLE_IN_SHELTER_KEY := "enable_in_shelter"
 const RUMMAGE_IN_SHELTER_KEY := "rummage_in_shelter"
 const PANEL_OPACITY_KEY := "panel_opacity"
+const PANEL_OFFSET_X_KEY := "panel_offset_x"
+const PANEL_OFFSET_Y_KEY := "panel_offset_y"
+const UI_SCALE_KEY := "ui_scale"
 const XP_SKILLS_COMPAT_KEY := "xp_skills_compat"
 const SHOW_CATEGORY_ICONS_KEY := "show_category_icons"
 const CURSOR_LOG_KEY := "debug_cursor_log"
@@ -96,6 +99,7 @@ var _rendered_row_start := -1
 var _rendered_row_end := -1
 var _scroll_to_top_on_render := false
 var _last_panel_opacity := -1.0
+var _last_ui_scale := -1.0
 var _last_hint_text := ""
 var _last_header_gutter := -1
 var _last_icons_enabled := true
@@ -147,6 +151,8 @@ var _rummage_seconds_per_item_current := 0.5
 var _rummage_audio_enabled_current := true
 var _capture_game_input_enabled_current := true
 var _panel_opacity_current := 0.9
+var _panel_offset_current := Vector2.ZERO
+var _ui_scale_current := 1.0
 var _xp_skills_compat_enabled_current := true
 var _rarity_color_map_current := {}
 var _rarity_color_signature_current := ""
@@ -362,6 +368,7 @@ func _build_ui(host: Node) -> void:
 	_hint_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	root.add_child(_hint_label)
 	_refresh_panel_style_if_needed()
+	_refresh_panel_scale_if_needed()
 	_refresh_hint_if_needed()
 
 
@@ -591,6 +598,7 @@ func _teardown_runtime() -> void:
 	_selected_row_style = null
 	_plain_row_style = null
 	_last_panel_opacity = -1.0
+	_last_ui_scale = -1.0
 	_last_hint_text = ""
 	_last_header_gutter = -1
 	_last_icons_enabled = true
@@ -658,6 +666,7 @@ func _show_panel(data: Dictionary, delta: float) -> void:
 		panel_start_us = Time.get_ticks_usec()
 		summary_cache_hit = _cached_summary_target_id == int(data.get("id", -1))
 	_refresh_panel_style_if_needed()
+	_refresh_panel_scale_if_needed()
 	var next_target_id := int(data.get("id", -1))
 	var target_changed := _current_target_id != next_target_id
 	_current_target_id = next_target_id
@@ -802,6 +811,16 @@ func _refresh_panel_style_if_needed() -> void:
 	_layout_dirty = true
 
 
+func _refresh_panel_scale_if_needed() -> void:
+	var scale_factor := _ui_scale()
+	if is_equal_approx(scale_factor, _last_ui_scale):
+		return
+
+	_last_ui_scale = scale_factor
+	if _panel != null:
+		_panel.scale = Vector2(scale_factor, scale_factor)
+
+
 func _refresh_hint_if_needed() -> void:
 	if _hint_label == null:
 		return
@@ -861,9 +880,12 @@ func _position_panel() -> void:
 	if _panel == null:
 		return
 	var screen := get_viewport().get_visible_rect().size
-	var pos := _cursor_screen_position() + PANEL_OFFSET
-	pos.x = clampf(pos.x, SCREEN_PAD, screen.x - _panel.size.x - SCREEN_PAD)
-	pos.y = clampf(pos.y, SCREEN_PAD, screen.y - _panel.size.y - SCREEN_PAD)
+	var pos := _cursor_screen_position() + PANEL_OFFSET + _panel_offset()
+	var panel_size := _panel.size * _ui_scale()
+	var max_x := maxf(SCREEN_PAD, screen.x - panel_size.x - SCREEN_PAD)
+	var max_y := maxf(SCREEN_PAD, screen.y - panel_size.y - SCREEN_PAD)
+	pos.x = clampf(pos.x, SCREEN_PAD, max_x)
+	pos.y = clampf(pos.y, SCREEN_PAD, max_y)
 	_panel.position = pos
 
 
@@ -1902,6 +1924,11 @@ func _sync_runtime_settings(force: bool = false) -> void:
 	_panel_opacity_current = clampf(
 		ConfigSupport.float_setting(self, PANEL_OPACITY_KEY, 0.9), 0.1, 1.0
 	)
+	_panel_offset_current = Vector2(
+		clampf(ConfigSupport.float_setting(self, PANEL_OFFSET_X_KEY, 0.0), -400.0, 400.0),
+		clampf(ConfigSupport.float_setting(self, PANEL_OFFSET_Y_KEY, 0.0), -400.0, 400.0)
+	)
+	_ui_scale_current = clampf(ConfigSupport.float_setting(self, UI_SCALE_KEY, 1.0), 0.5, 2.0)
 	_xp_skills_compat_enabled_current = ConfigSupport.bool_setting(self, XP_SKILLS_COMPAT_KEY, true)
 	_rummage_seconds_per_item_current = _configured_rummage_seconds_per_item()
 	_rarity_color_map_current = _build_rarity_color_map()
@@ -1912,6 +1939,14 @@ func _sync_runtime_settings(force: bool = false) -> void:
 
 func _rarity_colors_enabled() -> bool:
 	return _rarity_colors_enabled_current
+
+
+func _panel_offset() -> Vector2:
+	return _panel_offset_current
+
+
+func _ui_scale() -> float:
+	return _ui_scale_current
 
 
 func _show_category_icons() -> bool:

@@ -42,9 +42,9 @@ The condition column is only shown for item types that the game itself treats as
 
 ## Configuration
 
-When Mod Configuration Menu is installed, the mod exposes settings for the transfer keybind, the take-all keybind, the sort keybind, shared input capture, rarity colors, rummage timing, rummage audio, whether the mod is enabled in shelters, whether rummaging is allowed in shelters, menu opacity, the optional `XP & Skills System` compatibility hook, and the three supported rarity color overrides.
+When Mod Configuration Menu is installed, the mod exposes settings for the transfer keybind, the take-all keybind, the sort keybind, shared input capture, rarity colors, rummage timing, rummage audio, whether the mod is enabled in shelters, whether rummaging is allowed in shelters, menu opacity, menu position offsets, UI scale, the optional `XP & Skills System` compatibility hook, and the three supported rarity color overrides.
 
-`Capture Shared Inputs` controls whether the peek window temporarily blocks game actions that share the peek controls. `Rummage Time / Item` controls how long each grouped item row takes to appear during first inspection, and a value of `0` disables rummaging completely. `Rummage Audio` enables or disables the rummaging sound effect during reveal. `Show Category Icons` toggles the left-side item category icons in the preview list. `Enable In Shelter` controls whether the peek menu appears at all while you are in the shelter. `Rummage In Shelter` controls whether the same delay is applied while you are in the shelter. `Menu Opacity` changes the background opacity of the panel without affecting text readability. `XP & Skills Compat` lets popup inspection trigger that mod's search XP and scavenger bonus path without opening the native container UI. The MCM options are grouped by controls, display, rummage, shelter, compatibility, and debug settings.
+`Capture Shared Inputs` controls whether the peek window temporarily blocks game actions that share the peek controls. `Rummage Time / Item` controls how long each grouped item row takes to appear during first inspection, and a value of `0` disables rummaging completely. `Rummage Audio` enables or disables the rummaging sound effect during reveal. `Show Category Icons` toggles the left-side item category icons in the preview list. `Enable In Shelter` controls whether the peek menu appears at all while you are in the shelter. `Rummage In Shelter` controls whether the same delay is applied while you are in the shelter. `Menu Opacity` changes the background opacity of the panel without affecting text readability. `Horizontal Pos Offset`, `Vertical Pos Offset`, and `UI Scale` adjust the panel's placement and size while keeping it clamped to the visible screen. `XP & Skills Compat` lets popup inspection trigger that mod's search XP and scavenger bonus path without opening the native container UI. The MCM options are grouped by controls, display, rummage, shelter, compatibility, and debug settings.
 
 Debug logging options are session-only and reset to disabled each time the game starts.
 
@@ -95,7 +95,7 @@ Copy `ContainerPeek.vmz` into the game's mod folder at `~/.steam/debian-installa
 
 ## Requirements
 
-The mod requires `Road to Vostok` and the community mod loader format used by the game. `Mod Configuration Menu` is optional, but it is required if you want to change bindings or adjust shared input capture, shelter behavior, rummage, audio, opacity, and rarity color settings in game.
+The mod requires `Road to Vostok` and the community mod loader format used by the game. `Mod Configuration Menu` is optional, but it is required if you want to change bindings or adjust shared input capture, shelter behavior, rummage, audio, opacity, position, scale, and rarity color settings in game.
 
 ## Licensing Note
 

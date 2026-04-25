@@ -20,6 +20,9 @@ const RUMMAGE_AUDIO_KEY := "rummage_audio"
 const ENABLE_IN_SHELTER_KEY := "enable_in_shelter"
 const RUMMAGE_IN_SHELTER_KEY := "rummage_in_shelter"
 const PANEL_OPACITY_KEY := "panel_opacity"
+const PANEL_OFFSET_X_KEY := "panel_offset_x"
+const PANEL_OFFSET_Y_KEY := "panel_offset_y"
+const UI_SCALE_KEY := "ui_scale"
 const XP_SKILLS_COMPAT_KEY := "xp_skills_compat"
 const CURSOR_LOG_KEY := "debug_cursor_log"
 const PERFORMANCE_LOG_KEY := "debug_performance_log"
@@ -270,6 +273,57 @@ func _build_default_config() -> ConfigFile:
 				"maxRange": 2.0,
 				"step": 0.05,
 				"menu_pos": 200,
+			}
+		)
+	)
+	(
+		config
+		. set_value(
+			"Float",
+			PANEL_OFFSET_X_KEY,
+			{
+				"name": "Horizontal Pos Offset",
+				"tooltip": "Move the peek menu left or right from its default cursor position.",
+				"default": 0.0,
+				"value": 0.0,
+				"minRange": -400.0,
+				"maxRange": 400.0,
+				"step": 5.0,
+				"menu_pos": 112,
+			}
+		)
+	)
+	(
+		config
+		. set_value(
+			"Float",
+			PANEL_OFFSET_Y_KEY,
+			{
+				"name": "Vertical Pos Offset",
+				"tooltip": "Move the peek menu up or down from its default cursor position.",
+				"default": 0.0,
+				"value": 0.0,
+				"minRange": -400.0,
+				"maxRange": 400.0,
+				"step": 5.0,
+				"menu_pos": 114,
+			}
+		)
+	)
+	(
+		config
+		. set_value(
+			"Float",
+			UI_SCALE_KEY,
+			{
+				"name": "UI Scale",
+				"tooltip": "Scale the peek menu size.",
+				"default": 1.0,
+				"value": 1.0,
+				"minRange": 0.5,
+				"maxRange": 2.0,
+				"step": 0.05,
+				"menu_pos": 116,
 			}
 		)
 	)

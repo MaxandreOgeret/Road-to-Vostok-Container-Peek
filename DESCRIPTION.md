@@ -43,7 +43,7 @@ If you use Mod Configuration Menu, you can:
 - Tune rummaging delay and audio
 - Control whether the mod is enabled in the shelter
 - Control whether rummaging applies in the shelter
-- Adjust panel opacity
+- Adjust panel opacity, position, and scale
 - Enable optional compatibility with XP & Skills System
 
 Debug logging options are session-only and reset to disabled when the game starts.
