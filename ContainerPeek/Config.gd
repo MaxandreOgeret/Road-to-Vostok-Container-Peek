@@ -181,7 +181,7 @@ func _build_default_config() -> ConfigFile:
 				"default_type": "Key",
 				"value": KEY_V,
 				"type": "Key",
-				"menu_pos": 25,
+				"menu_pos": 30,
 			}
 		)
 	)
@@ -195,7 +195,7 @@ func _build_default_config() -> ConfigFile:
 				"tooltip": "Color item names by rarity in the preview list.",
 				"default": true,
 				"value": true,
-				"menu_pos": 30,
+				"menu_pos": 120,
 			}
 		)
 	)
@@ -209,7 +209,7 @@ func _build_default_config() -> ConfigFile:
 				"tooltip": "Display item category icons in the preview list.",
 				"default": true,
 				"value": true,
-				"menu_pos": 35,
+				"menu_pos": 100,
 			}
 		)
 	)
@@ -230,7 +230,7 @@ func _build_default_config() -> ConfigFile:
 				"minRange": 0.0,
 				"maxRange": 2.0,
 				"step": 0.05,
-				"menu_pos": 40,
+				"menu_pos": 200,
 			}
 		)
 	)
@@ -244,7 +244,7 @@ func _build_default_config() -> ConfigFile:
 				"tooltip": "Play the rummaging sound effect while items are being revealed.",
 				"default": true,
 				"value": true,
-				"menu_pos": 42,
+				"menu_pos": 210,
 			}
 		)
 	)
@@ -258,7 +258,7 @@ func _build_default_config() -> ConfigFile:
 				"tooltip": "Allow the peek menu to appear while you are in the shelter.",
 				"default": true,
 				"value": true,
-				"menu_pos": 43,
+				"menu_pos": 300,
 			}
 		)
 	)
@@ -272,7 +272,7 @@ func _build_default_config() -> ConfigFile:
 				"tooltip": "Allow rummaging delays while inspecting containers in the shelter.",
 				"default": false,
 				"value": false,
-				"menu_pos": 44,
+				"menu_pos": 310,
 			}
 		)
 	)
@@ -289,7 +289,7 @@ func _build_default_config() -> ConfigFile:
 				"minRange": 0.1,
 				"maxRange": 1.0,
 				"step": 0.05,
-				"menu_pos": 45,
+				"menu_pos": 110,
 			}
 		)
 	)
@@ -303,7 +303,7 @@ func _build_default_config() -> ConfigFile:
 				"tooltip": xp_skills_tooltip,
 				"default": true,
 				"value": true,
-				"menu_pos": 46,
+				"menu_pos": 400,
 			}
 		)
 	)
@@ -318,7 +318,7 @@ func _build_default_config() -> ConfigFile:
 				"Write cursor and viewport debug events to user://containerpeek_cursor.log.",
 				"default": false,
 				"value": false,
-				"menu_pos": 47,
+				"menu_pos": 900,
 			}
 		)
 	)
@@ -336,7 +336,7 @@ func _build_default_config() -> ConfigFile:
 				),
 				"default": false,
 				"value": false,
-				"menu_pos": 48,
+				"menu_pos": 910,
 			}
 		)
 	)
@@ -351,7 +351,7 @@ func _build_default_config() -> ConfigFile:
 				"default": Color(1.0, 1.0, 1.0, 0.78),
 				"value": Color(1.0, 1.0, 1.0, 0.78),
 				"allowAlpha": true,
-				"menu_pos": 50,
+				"menu_pos": 130,
 			}
 		)
 	)
@@ -366,7 +366,7 @@ func _build_default_config() -> ConfigFile:
 				"default": Color.RED,
 				"value": Color.RED,
 				"allowAlpha": true,
-				"menu_pos": 70,
+				"menu_pos": 140,
 			}
 		)
 	)
@@ -381,7 +381,7 @@ func _build_default_config() -> ConfigFile:
 				"default": Color.DARK_VIOLET,
 				"value": Color.DARK_VIOLET,
 				"allowAlpha": true,
-				"menu_pos": 80,
+				"menu_pos": 150,
 			}
 		)
 	)
