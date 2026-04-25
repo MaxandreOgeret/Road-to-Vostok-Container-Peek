@@ -46,6 +46,8 @@ When Mod Configuration Menu is installed, the mod exposes settings for the trans
 
 `Capture Shared Inputs` controls whether the peek window temporarily blocks game actions that share the peek controls. `Rummage Time / Item` controls how long each grouped item row takes to appear during first inspection, and a value of `0` disables rummaging completely. `Rummage Audio` enables or disables the rummaging sound effect during reveal. `Show Category Icons` toggles the left-side item category icons in the preview list. `Enable In Shelter` controls whether the peek menu appears at all while you are in the shelter. `Rummage In Shelter` controls whether the same delay is applied while you are in the shelter. `Menu Opacity` changes the background opacity of the panel without affecting text readability. `XP & Skills Compat` lets popup inspection trigger that mod's search XP and scavenger bonus path without opening the native container UI.
 
+Debug logging options are session-only and reset to disabled each time the game starts.
+
 ## Compatibility
 
 - `XP & Skills System` (`ModWorkshop #55940`): supported through the optional `XP & Skills Compat` setting. When enabled, popup inspection can trigger that mod's container XP and scavenger bonus path without opening the native container UI. When rummaging is enabled, the compatibility trigger waits until rummaging finishes.

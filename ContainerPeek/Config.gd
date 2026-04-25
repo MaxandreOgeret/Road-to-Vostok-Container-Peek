@@ -49,6 +49,8 @@ func _ready() -> void:
 		_config = defaults
 		_config.save(config_path)
 
+	_reset_session_only_settings()
+
 	if _mcm_helpers != null and _mcm_helpers.has_method("RegisterConfiguration"):
 		_mcm_helpers.call(
 			"RegisterConfiguration",
@@ -114,6 +116,24 @@ func set_int(section: String, setting_key: String, value: int) -> void:
 func _on_config_saved(config: ConfigFile) -> void:
 	_config = config
 	_apply_input_actions()
+
+
+func _reset_session_only_settings() -> void:
+	var changed := false
+	for setting_key in [CURSOR_LOG_KEY, PERFORMANCE_LOG_KEY]:
+		var value: Variant = _config.get_value("Bool", setting_key, false)
+		if value is Dictionary:
+			var data := (value as Dictionary).duplicate(true)
+			if bool(data.get("value", false)):
+				data["value"] = false
+				_config.set_value("Bool", setting_key, data)
+				changed = true
+		elif bool(value):
+			_config.set_value("Bool", setting_key, false)
+			changed = true
+
+	if changed:
+		_config.save(_config_path())
 
 
 func _load_mcm_helpers() -> Resource:
