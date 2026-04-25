@@ -97,7 +97,6 @@ var _rendered_row_end := -1
 var _scroll_to_top_on_render := false
 var _last_panel_opacity := -1.0
 var _last_hint_text := ""
-var _last_title_text := ""
 var _last_header_gutter := -1
 var _last_icons_enabled := true
 var _layout_dirty := true
@@ -112,8 +111,6 @@ var _debug_last_visible_window_size := 0
 
 var _canvas: CanvasLayer
 var _panel: PanelContainer
-var _title_label: Label
-var _header_bar: ColorRect
 var _header_margin: MarginContainer
 var _header_item_label: Label
 var _header_row: Control
@@ -298,20 +295,6 @@ func _build_ui(host: Node) -> void:
 	var root := VBoxContainer.new()
 	root.add_theme_constant_override("separation", 4)
 	margin.add_child(root)
-
-	_header_bar = ColorRect.new()
-	_header_bar.custom_minimum_size = Vector2(0.0, 28.0)
-	root.add_child(_header_bar)
-
-	_title_label = Label.new()
-	_title_label.theme = _ui_theme
-	_title_label.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
-	_title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_title_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	_title_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_title_label.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	_title_label.add_theme_font_size_override("font_size", 13)
-	_header_bar.add_child(_title_label)
 
 	_header_margin = MarginContainer.new()
 	_header_margin.add_theme_constant_override("margin_left", ROW_SIDE_PAD)
@@ -587,7 +570,6 @@ func _teardown_runtime() -> void:
 		_canvas.queue_free()
 	_canvas = null
 	_panel = null
-	_title_label = null
 	_header_margin = null
 	_header_item_label = null
 	_header_row = null
@@ -610,7 +592,6 @@ func _teardown_runtime() -> void:
 	_plain_row_style = null
 	_last_panel_opacity = -1.0
 	_last_hint_text = ""
-	_last_title_text = ""
 	_last_header_gutter = -1
 	_last_icons_enabled = true
 	_scroll_to_top_on_render = false
@@ -652,7 +633,7 @@ func _restore_captured_menu_input() -> void:
 
 
 func _show_panel(data: Dictionary, delta: float) -> void:
-	if _panel == null or _title_label == null:
+	if _panel == null:
 		return
 	_sync_runtime_settings()
 	if _capture_game_input_enabled_current:
@@ -686,7 +667,6 @@ func _show_panel(data: Dictionary, delta: float) -> void:
 	var focused := _tracked.get(_current_target_id, null)
 	_last_focus_node = focused as Node3D if focused is Node3D else null
 	_last_focus_title = str(data.get("title", "Container"))
-	_refresh_title(_last_focus_title)
 	_refresh_hint_if_needed()
 	_refresh_header_if_needed()
 
@@ -817,18 +797,8 @@ func _refresh_panel_style_if_needed() -> void:
 		_panel.add_theme_stylebox_override(
 			"panel", PanelSupport.make_panel_style(_ui_tile, panel_opacity)
 		)
-	if _header_bar != null:
-		_header_bar.color = Color(1.0, 1.0, 1.0, 0.05 * panel_opacity)
 	if _divider_bar != null:
 		_divider_bar.color = Color(0.58, 0.65, 0.69, 0.25 * panel_opacity)
-	_layout_dirty = true
-
-
-func _refresh_title(title: String) -> void:
-	if _title_label == null or _last_title_text == title:
-		return
-	_last_title_text = title
-	_title_label.text = title
 	_layout_dirty = true
 
 
