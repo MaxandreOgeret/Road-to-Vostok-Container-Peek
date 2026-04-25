@@ -5,8 +5,8 @@
 </p>
 
 <p align="center">
-  <a href="https://www.youtube.com/watch?v=dwQ89qOHKWE">
-    <img src="https://img.youtube.com/vi/dwQ89qOHKWE/0.jpg" alt="Mod Showcase" />
+  <a href="https://www.youtube.com/watch?v=SILqqw-1Vd0">
+    <img src="https://img.youtube.com/vi/SILqqw-1Vd0/0.jpg" alt="Mod Showcase" />
   </a>
 </p>
 
@@ -18,7 +18,7 @@ The mod follows the game's own interaction logic instead of running a separate c
 
 The loot window shows item names, total displayed weight, condition, and value in a compact table with a fixed header and a real scrollbar. Rarity colors can be enabled for item names, and the selected row keeps its rarity color instead of switching to a neutral highlight color.
 
-The mod also supports an optional rummaging system for first-time inspection. When rummaging is enabled, grouped item rows are revealed over time with a spinner, a single skeleton placeholder row, and optional audio. Corpse rummaging uses dedicated bundled sounds, while other containers keep the existing game-based audio behavior. By default, the mod stays enabled in shelters, but rummaging is skipped there and the full contents are shown immediately unless that behavior is changed in Mod Configuration Menu.
+The mod also supports an optional rummaging system for first-time inspection. When rummaging is enabled, grouped item rows are revealed over time with a rotating icon, a single skeleton placeholder row, and optional audio. Corpse rummaging uses dedicated bundled sounds, while other containers keep the existing game-based audio behavior. By default, the mod stays enabled in shelters, but rummaging is skipped there and the full contents are shown immediately unless that behavior is changed in Mod Configuration Menu.
 
 Take behavior is designed to stay close to the base game. You can take the selected entry or take all visible contents, and failed transfers use the same error feedback the game already uses when inventory space runs out.
 
@@ -44,7 +44,7 @@ The condition column is only shown for item types that the game itself treats as
 
 When Mod Configuration Menu is installed, the mod exposes settings for the transfer keybind, the take-all keybind, the sort keybind, shared input capture, rarity colors, rummage timing, rummage audio, whether the mod is enabled in shelters, whether rummaging is allowed in shelters, menu opacity, the optional `XP & Skills System` compatibility hook, and the three supported rarity color overrides.
 
-`Capture Shared Inputs` controls whether the peek window temporarily blocks game actions that share the peek controls. `Rummage Time / Item` controls how long each grouped item row takes to appear during first inspection, and a value of `0` disables rummaging completely. `Rummage Audio` enables or disables the rummaging sound effect during reveal. `Show Category Icons` toggles the left-side item category icons in the preview list. `Enable In Shelter` controls whether the peek menu appears at all while you are in the shelter. `Rummage In Shelter` controls whether the same delay is applied while you are in the shelter. `Menu Opacity` changes the background opacity of the panel without affecting text readability. `XP & Skills Compat` lets popup inspection trigger that mod's search XP and scavenger bonus path without opening the native container UI.
+`Capture Shared Inputs` controls whether the peek window temporarily blocks game actions that share the peek controls. `Rummage Time / Item` controls how long each grouped item row takes to appear during first inspection, and a value of `0` disables rummaging completely. `Rummage Audio` enables or disables the rummaging sound effect during reveal. `Show Category Icons` toggles the left-side item category icons in the preview list. `Enable In Shelter` controls whether the peek menu appears at all while you are in the shelter. `Rummage In Shelter` controls whether the same delay is applied while you are in the shelter. `Menu Opacity` changes the background opacity of the panel without affecting text readability. `XP & Skills Compat` lets popup inspection trigger that mod's search XP and scavenger bonus path without opening the native container UI. The MCM options are grouped by controls, display, rummage, shelter, compatibility, and debug settings.
 
 Debug logging options are session-only and reset to disabled each time the game starts.
 
@@ -95,7 +95,7 @@ Copy `ContainerPeek.vmz` into the game's mod folder at `~/.steam/debian-installa
 
 ## Requirements
 
-The mod requires `Road to Vostok` and the community mod loader format used by the game. `Mod Configuration Menu` is optional, but it is required if you want to change bindings or adjust the shelter toggle, rummage, shelter rummaging, audio, opacity, and rarity color settings in game.
+The mod requires `Road to Vostok` and the community mod loader format used by the game. `Mod Configuration Menu` is optional, but it is required if you want to change bindings or adjust shared input capture, shelter behavior, rummage, audio, opacity, and rarity color settings in game.
 
 ## Licensing Note
 

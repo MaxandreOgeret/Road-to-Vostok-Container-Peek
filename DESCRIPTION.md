@@ -2,7 +2,7 @@
 
 Container Peek lets you check a container's contents the moment you aim at it, without opening the full inventory screen first.
 
-[![Mod Showcase](https://img.youtube.com/vi/dwQ89qOHKWE/0.jpg)](https://www.youtube.com/watch?v=dwQ89qOHKWE)
+[![Mod Showcase](https://img.youtube.com/vi/SILqqw-1Vd0/0.jpg)](https://www.youtube.com/watch?v=SILqqw-1Vd0)
 
 ## What It Does
 
@@ -20,8 +20,10 @@ The goal is simple: faster looting, less menu friction, and better flow.
 - `F` to take the selected item
 - `R` to take all
 - `V` to cycle sorting by name, rarity, weight, and value
+- Aim-aware hiding while a primary or secondary weapon is held
+- Optional shared input capture for controls that overlap with game bindings
 - Optional rarity-colored item names
-- Optional rummaging behavior for slower first inspection
+- Optional rummaging behavior with a rotating icon for slower first inspection
 - Optional compatibility with XP & Skills System
 
 ## Why Use It
@@ -37,11 +39,14 @@ If you use Mod Configuration Menu, you can:
 - Rebind take, take-all, and sort keys
 - Enable or disable rarity colors
 - Enable or disable category icons
+- Enable or disable shared input capture
 - Tune rummaging delay and audio
 - Control whether the mod is enabled in the shelter
 - Control whether rummaging applies in the shelter
 - Adjust panel opacity
 - Enable optional compatibility with XP & Skills System
+
+Debug logging options are session-only and reset to disabled when the game starts.
 
 ## Compatibility
 

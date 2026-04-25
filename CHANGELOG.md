@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- Replaced the rummage text spinner with a rotating native combine icon.
+- Removed the container-name title bar from the peek panel for a more compact layout.
+- Added aim-aware hiding: aiming with a primary or secondary weapon closes the current peek panel until the player looks away and back.
+- Added `Capture Shared Inputs`, enabled by default, to prevent shared keybinds such as mouse wheel from also triggering game actions while the peek menu is open.
+- Made debug logging toggles session-only so they reset to disabled on game start.
+- Reordered Mod Configuration Menu options into clearer groups.
+
 ## 1.4.0
 
 - Added item category icons to the peek menu, with a config toggle to disable them.
