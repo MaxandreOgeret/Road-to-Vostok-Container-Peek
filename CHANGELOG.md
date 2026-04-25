@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.5.0
 
 - Replaced the rummage text spinner with a rotating native combine icon.
 - Removed the container-name title bar from the peek panel for a more compact layout.
