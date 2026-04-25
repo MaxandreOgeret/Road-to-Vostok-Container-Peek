@@ -1,6 +1,7 @@
 extends Node
 
 const ConfigSupport = preload("res://ContainerPeek/ConfigSupport.gd")
+const GameInputSupport = preload("res://ContainerPeek/GameInputSupport.gd")
 const ItemSupport = preload("res://ContainerPeek/ItemSupport.gd")
 const ItemListState = preload("res://ContainerPeek/ItemListState.gd")
 const PanelSupport = preload("res://ContainerPeek/PanelSupport.gd")
@@ -38,6 +39,7 @@ const VALUE_COL_WIDTH := 60.0
 const TRANSFER_ACTION := &"container_peek_transfer"
 const TAKE_ALL_ACTION := &"container_peek_take_all"
 const SORT_ACTION := &"container_peek_sort"
+const CAPTURE_GAME_INPUT_KEY := "capture_game_input"
 const RUMMAGE_TIME_KEY := "rummage_seconds_per_item"
 const RUMMAGE_AUDIO_KEY := "rummage_audio"
 const ENABLE_IN_SHELTER_KEY := "enable_in_shelter"
@@ -68,6 +70,7 @@ const SETTINGS_SYNC_INTERVAL_MSEC := 250
 
 var _tracked: Dictionary = {}
 var _game_data: Resource
+var _game_input := GameInputSupport.new()
 var _item_list := ItemListState.new()
 var _item_list_model: Dictionary = {}
 var _rummage_progress_by_id: Dictionary = {}
@@ -143,6 +146,7 @@ var _rarity_colors_enabled_current := true
 var _show_category_icons_current := true
 var _rummage_seconds_per_item_current := 0.5
 var _rummage_audio_enabled_current := true
+var _capture_game_input_enabled_current := true
 var _panel_opacity_current := 0.9
 var _xp_skills_compat_enabled_current := true
 var _rarity_color_map_current := {}
@@ -157,6 +161,11 @@ func _ready() -> void:
 		SORT_MODE_NAME,
 		SORT_MODE_VALUE
 	)
+
+
+func _exit_tree() -> void:
+	_game_input.clear_aim_suppression()
+	_restore_captured_menu_input()
 
 
 func _process(delta: float) -> void:
@@ -182,6 +191,10 @@ func _process(delta: float) -> void:
 
 	var target := _target_from_interactor(cam)
 	if target.is_empty():
+		_game_input.clear_aim_suppression()
+		_hide_panel()
+		return
+	if _game_input.should_hide_for_aim(target):
 		_hide_panel()
 		return
 
@@ -194,6 +207,10 @@ func _unhandled_input(event: InputEvent) -> void:
 	if _panel == null:
 		return
 	if not _panel.visible or _current_target_id == -1:
+		return
+
+	if _game_input.handle_aim_input(event, _current_target_id):
+		_hide_panel()
 		return
 
 	if _is_action_event_pressed(event, TRANSFER_ACTION):
@@ -595,10 +612,13 @@ func _teardown_runtime() -> void:
 	_scroll_to_top_on_render = false
 	_item_list.reset()
 	_item_list_model.clear()
+	_game_input.clear_aim_suppression()
+	_restore_captured_menu_input()
 	_layout_dirty = true
 
 
 func _hide_panel() -> void:
+	_restore_captured_menu_input()
 	_current_target_id = -1
 	_visible_item_names.clear()
 	_rendered_item_rows.clear()
@@ -622,10 +642,19 @@ func _hide_panel() -> void:
 		_loading_row.modulate = Color(1.0, 1.0, 1.0, 0.0)
 
 
+func _restore_captured_menu_input() -> void:
+	# Captured InputMap bindings must always be restored, or shared game controls stay disabled.
+	_game_input.restore_menu_input()
+
+
 func _show_panel(data: Dictionary, delta: float) -> void:
 	if _panel == null or _title_label == null:
 		return
 	_sync_runtime_settings()
+	if _capture_game_input_enabled_current:
+		_game_input.capture_menu_input([TRANSFER_ACTION, TAKE_ALL_ACTION, SORT_ACTION])
+	else:
+		_restore_captured_menu_input()
 	var perf_enabled := _performance_log_enabled_current
 	var panel_start_us := 0
 	var summary_us := 0
@@ -1900,6 +1929,9 @@ func _sync_runtime_settings(force: bool = false) -> void:
 	_performance_log_enabled_current = ConfigSupport.bool_setting(self, PERFORMANCE_LOG_KEY, false)
 	_rarity_colors_enabled_current = ConfigSupport.bool_setting(self, "rarity_colors", true)
 	_show_category_icons_current = ConfigSupport.bool_setting(self, SHOW_CATEGORY_ICONS_KEY, true)
+	_capture_game_input_enabled_current = ConfigSupport.bool_setting(
+		self, CAPTURE_GAME_INPUT_KEY, true
+	)
 	_rummage_audio_enabled_current = ConfigSupport.bool_setting(self, RUMMAGE_AUDIO_KEY, true)
 	_panel_opacity_current = clampf(
 		ConfigSupport.float_setting(self, PANEL_OPACITY_KEY, 0.9), 0.1, 1.0
@@ -1909,6 +1941,7 @@ func _sync_runtime_settings(force: bool = false) -> void:
 	_rarity_color_map_current = _build_rarity_color_map()
 	_rarity_color_signature_current = _build_rarity_color_signature(_rarity_color_map_current)
 	_item_list.set_debug_enabled(_cursor_log_enabled_current, DEBUG_CURSOR_LOG_PATH)
+	_game_input.set_debug_logger(Callable(self, "_debug_append_cursor_log"))
 
 
 func _rarity_colors_enabled() -> bool:

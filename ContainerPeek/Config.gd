@@ -12,6 +12,7 @@ const XP_SKILLS_MAIN_RES := "res://mods/XPSkillsSystem/Main.gd"
 const TRANSFER_ACTION := &"container_peek_transfer"
 const TAKE_ALL_ACTION := &"container_peek_take_all"
 const SORT_ACTION := &"container_peek_sort"
+const CAPTURE_GAME_INPUT_KEY := "capture_game_input"
 const RARITY_COLORS_KEY := "rarity_colors"
 const SHOW_CATEGORY_ICONS_KEY := "show_category_icons"
 const RUMMAGE_TIME_KEY := "rummage_seconds_per_item"
@@ -182,6 +183,24 @@ func _build_default_config() -> ConfigFile:
 				"value": KEY_V,
 				"type": "Key",
 				"menu_pos": 30,
+			}
+		)
+	)
+	(
+		config
+		. set_value(
+			"Bool",
+			CAPTURE_GAME_INPUT_KEY,
+			{
+				"name": "Capture Shared Inputs",
+				"tooltip":
+				(
+					"Prevent game actions bound to the same keys or mouse buttons from"
+					+ " firing while the peek menu uses them."
+				),
+				"default": true,
+				"value": true,
+				"menu_pos": 40,
 			}
 		)
 	)

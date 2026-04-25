@@ -28,6 +28,10 @@ By default, the mouse wheel moves the selection in the loot list, `F` takes the 
 
 ## Behavior Notes
 
+Using the game's aim action while holding a primary or secondary weapon closes the window for the current container. The window stays hidden for that container until you look away and then look back at it, so aiming down sights is not obstructed by the preview.
+
+When `Capture Shared Inputs` is enabled, matching game actions bound to the same key or mouse button are temporarily captured by the mod while the peek window is visible and restored when the window closes. This keeps shared bindings from also triggering game actions such as raising or lowering weapons while scrolling the peek list.
+
 The preview groups identical item names into a single row. Because of that grouping, taking a selected row moves the first matching stack for that name rather than a specific stack instance.
 
 When `Rummage Time / Item` is greater than `0`, newly inspected containers reveal grouped rows over time. Setting that value to `0` restores the immediate display behavior. Empty containers still spend one rummage interval in the loading state before showing `Empty`, unless rummaging has been disabled.
@@ -38,9 +42,9 @@ The condition column is only shown for item types that the game itself treats as
 
 ## Configuration
 
-When Mod Configuration Menu is installed, the mod exposes settings for the transfer keybind, the take-all keybind, the sort keybind, rarity colors, rummage timing, rummage audio, whether the mod is enabled in shelters, whether rummaging is allowed in shelters, menu opacity, the optional `XP & Skills System` compatibility hook, and the three supported rarity color overrides.
+When Mod Configuration Menu is installed, the mod exposes settings for the transfer keybind, the take-all keybind, the sort keybind, shared input capture, rarity colors, rummage timing, rummage audio, whether the mod is enabled in shelters, whether rummaging is allowed in shelters, menu opacity, the optional `XP & Skills System` compatibility hook, and the three supported rarity color overrides.
 
-`Rummage Time / Item` controls how long each grouped item row takes to appear during first inspection, and a value of `0` disables rummaging completely. `Rummage Audio` enables or disables the rummaging sound effect during reveal. `Show Category Icons` toggles the left-side item category icons in the preview list. `Enable In Shelter` controls whether the peek menu appears at all while you are in the shelter. `Rummage In Shelter` controls whether the same delay is applied while you are in the shelter. `Menu Opacity` changes the background opacity of the panel without affecting text readability. `XP & Skills Compat` lets popup inspection trigger that mod's search XP and scavenger bonus path without opening the native container UI.
+`Capture Shared Inputs` controls whether the peek window temporarily blocks game actions that share the peek controls. `Rummage Time / Item` controls how long each grouped item row takes to appear during first inspection, and a value of `0` disables rummaging completely. `Rummage Audio` enables or disables the rummaging sound effect during reveal. `Show Category Icons` toggles the left-side item category icons in the preview list. `Enable In Shelter` controls whether the peek menu appears at all while you are in the shelter. `Rummage In Shelter` controls whether the same delay is applied while you are in the shelter. `Menu Opacity` changes the background opacity of the panel without affecting text readability. `XP & Skills Compat` lets popup inspection trigger that mod's search XP and scavenger bonus path without opening the native container UI.
 
 ## Compatibility
 
