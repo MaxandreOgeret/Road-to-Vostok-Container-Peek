@@ -12,6 +12,7 @@ const AUDIO_INSTANCE_2D_SCENE := preload("res://Resources/AudioInstance2D.tscn")
 const RUMMAGE_AUDIO_EVENT := preload("res://Audio/Crafting/Craft_Generic.tres")
 const CORPSE_RUMMAGE_AUDIO_FILE := "res://ContainerPeek/audio/container_peek_rummage_corpse.mp3"
 const AMMO_ICON_SVG_RES := "res://ContainerPeek/img/ammo.svg"
+const COMBINE_ICON_RES := "res://UI/Sprites/Icon_Combine.png"
 const UI_THEME_RES := "res://UI/Themes/Theme.tres"
 const UI_TILE_RES := "res://UI/Sprites/Tile.png"
 const CATEGORY_ICON_RES := {
@@ -52,11 +53,11 @@ const PERFORMANCE_LOG_KEY := "debug_performance_log"
 const RARITY_COMMON_COLOR_KEY := "rarity_common_color"
 const RARITY_RARE_COLOR_KEY := "rarity_rare_color"
 const RARITY_LEGENDARY_COLOR_KEY := "rarity_legendary_color"
-const LOADING_FRAME_SECONDS := 0.2
-const LOADING_SPINNER_FRAMES := ["|", "/", "-", "\\"]
 const PLACEHOLDER_BAR_HEIGHT := 8.0
 const RUMMAGE_AUDIO_MIN_OFFSET := 1.0
 const RUMMAGE_AUDIO_END_PAD := 0.05
+const LOADING_SPINNER_SIZE := 12.0
+const LOADING_SPINNER_ROTATION_SPEED := 3.0
 const SORT_MODE_NAME := 0
 const SORT_MODE_RARITY := 1
 const SORT_MODE_WEIGHT := 2
@@ -120,12 +121,13 @@ var _item_scroll: ScrollContainer
 var _items_box: VBoxContainer
 var _loading_row: HBoxContainer
 var _loading_label: Label
-var _loading_spinner_label: Label
+var _loading_spinner_icon: TextureRect
 var _divider_bar: ColorRect
 var _hint_label: Label
 var _ui_host: Node
 var _ui_theme: Theme
 var _ui_tile: Texture2D
+var _combine_icon: Texture2D
 var _category_icons: Dictionary = {}
 var _item_font: Font
 var _numeric_font: Font
@@ -358,14 +360,14 @@ func _build_ui(host: Node) -> void:
 	_loading_label.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0, 0.55))
 	_loading_row.add_child(_loading_label)
 
-	_loading_spinner_label = Label.new()
-	_loading_spinner_label.theme = _ui_theme
-	_loading_spinner_label.text = LOADING_SPINNER_FRAMES[0]
-	_loading_spinner_label.custom_minimum_size = Vector2(10.0, 0.0)
-	_loading_spinner_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_loading_spinner_label.add_theme_font_size_override("font_size", 12)
-	_loading_spinner_label.add_theme_color_override("font_color", Color(1.0, 1.0, 1.0, 0.72))
-	_loading_row.add_child(_loading_spinner_label)
+	_loading_spinner_icon = TextureRect.new()
+	_loading_spinner_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_loading_spinner_icon.texture = _combine_icon
+	_loading_spinner_icon.modulate = Color(1.0, 1.0, 1.0, 0.72)
+	_loading_spinner_icon.custom_minimum_size = Vector2(LOADING_SPINNER_SIZE, LOADING_SPINNER_SIZE)
+	_loading_spinner_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_loading_spinner_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	_loading_row.add_child(_loading_spinner_icon)
 
 	_divider_bar = PanelSupport.make_divider()
 	root.add_child(_divider_bar)
@@ -385,6 +387,8 @@ func _load_ui_assets() -> void:
 		_ui_theme = load(UI_THEME_RES) as Theme
 	if _ui_tile == null and ResourceLoader.exists(UI_TILE_RES):
 		_ui_tile = load(UI_TILE_RES) as Texture2D
+	if _combine_icon == null and ResourceLoader.exists(COMBINE_ICON_RES):
+		_combine_icon = load(COMBINE_ICON_RES) as Texture2D
 	_load_category_icons()
 
 
@@ -591,7 +595,7 @@ func _teardown_runtime() -> void:
 	_items_box = null
 	_loading_row = null
 	_loading_label = null
-	_loading_spinner_label = null
+	_loading_spinner_icon = null
 	_hint_label = null
 	_ui_host = null
 	_interactor = null
@@ -1165,25 +1169,17 @@ func _is_corpse_focus() -> bool:
 	return TargetSupport.is_corpse_title(_last_focus_title)
 
 
-func _loading_animation_phase() -> int:
-	return (
-		int(floor(float(Time.get_ticks_msec()) / (LOADING_FRAME_SECONDS * 1000.0)))
-		% LOADING_SPINNER_FRAMES.size()
-	)
-
-
-func _loading_spinner_text() -> String:
-	return LOADING_SPINNER_FRAMES[_loading_animation_phase()]
-
-
 func _update_loading_indicator(loading: bool) -> void:
-	if _loading_row == null or _loading_label == null or _loading_spinner_label == null:
+	if _loading_row == null or _loading_label == null or _loading_spinner_icon == null:
 		return
 	if not loading:
 		_stop_rummage_sound()
 	_loading_row.modulate = Color(1.0, 1.0, 1.0, 1.0 if loading else 0.0)
 	if loading:
-		_loading_spinner_label.text = _loading_spinner_text()
+		_loading_spinner_icon.pivot_offset = _loading_spinner_icon.size * 0.5
+		_loading_spinner_icon.rotation = (
+			float(Time.get_ticks_msec()) * 0.001 * LOADING_SPINNER_ROTATION_SPEED
+		)
 		_sync_placeholder_animation()
 
 
