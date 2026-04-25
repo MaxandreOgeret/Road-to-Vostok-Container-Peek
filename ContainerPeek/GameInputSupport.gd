@@ -5,7 +5,7 @@ const AIM_ACTION := &"aim"
 const MENU_WHEEL_BUTTONS := [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN]
 
 var _game_data: Resource
-var _aim_suppressed_target_id := -1
+var _weapon_input_suppressed_target_id := -1
 var _captured_action_events: Dictionary = {}
 var _debug_logger := Callable()
 
@@ -15,25 +15,36 @@ func set_debug_logger(logger: Callable) -> void:
 
 
 func should_hide_for_aim(target: Dictionary) -> bool:
+	return should_hide_for_weapon_input(target)
+
+
+func should_hide_for_weapon_input(target: Dictionary) -> bool:
 	var target_id := int(target.get("id", -1))
 	if target_id == -1:
-		clear_aim_suppression()
+		clear_weapon_input_suppression()
 		return false
 
-	if _aim_suppressed_target_id != -1 and _aim_suppressed_target_id != target_id:
-		clear_aim_suppression()
+	if _weapon_input_suppressed_target_id != -1 and _weapon_input_suppressed_target_id != target_id:
+		clear_weapon_input_suppression()
 
-	if _aim_suppressed_target_id == target_id:
+	if _weapon_input_suppressed_target_id == target_id:
 		return true
 
-	if _weapon_is_held() and (_aim_input_active() or _game_data_is_aiming()):
-		_aim_suppressed_target_id = target_id
+	if (
+		_weapon_is_held()
+		and (_aim_input_active() or _game_data_is_aiming() or _game_data_is_firing())
+	):
+		_weapon_input_suppressed_target_id = target_id
 		return true
 
 	return false
 
 
 func handle_aim_input(event: InputEvent, current_target_id: int) -> bool:
+	return handle_weapon_hide_input(event, current_target_id)
+
+
+func handle_weapon_hide_input(event: InputEvent, current_target_id: int) -> bool:
 	if current_target_id == -1:
 		return false
 	if not _weapon_is_held():
@@ -41,12 +52,16 @@ func handle_aim_input(event: InputEvent, current_target_id: int) -> bool:
 	if not _is_action_event_pressed(event, AIM_ACTION):
 		return false
 
-	_aim_suppressed_target_id = current_target_id
+	_weapon_input_suppressed_target_id = current_target_id
 	return true
 
 
 func clear_aim_suppression() -> void:
-	_aim_suppressed_target_id = -1
+	clear_weapon_input_suppression()
+
+
+func clear_weapon_input_suppression() -> void:
+	_weapon_input_suppressed_target_id = -1
 
 
 func capture_menu_input(protected_actions: Array[StringName]) -> void:
@@ -158,6 +173,15 @@ func _game_data_is_aiming() -> bool:
 
 	var is_aiming: Variant = game_data.get("isAiming")
 	return is_aiming != null and bool(is_aiming)
+
+
+func _game_data_is_firing() -> bool:
+	var game_data := _load_game_data()
+	if game_data == null:
+		return false
+
+	var is_firing: Variant = game_data.get("isFiring")
+	return is_firing != null and bool(is_firing)
 
 
 func _weapon_is_held() -> bool:

@@ -20,7 +20,7 @@ The goal is simple: faster looting, less menu friction, and better flow.
 - `F` to take the selected item
 - `R` to take all
 - `V` to cycle sorting by name, rarity, weight, and value
-- Aim-aware hiding while a primary or secondary weapon is held
+- Aim/fire-aware hiding while a primary or secondary weapon is held
 - Optional shared input capture for controls that overlap with game bindings
 - Optional rarity-colored item names
 - Optional rummaging behavior with a rotating icon for slower first inspection

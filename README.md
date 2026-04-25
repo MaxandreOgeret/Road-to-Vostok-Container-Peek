@@ -28,7 +28,7 @@ By default, the mouse wheel moves the selection in the loot list, `F` takes the 
 
 ## Behavior Notes
 
-Using the game's aim action while holding a primary or secondary weapon closes the window for the current container. The window stays hidden for that container until you look away and then look back at it, so aiming down sights is not obstructed by the preview.
+Aiming or firing while holding a primary or secondary weapon closes the window for the current container. The window stays hidden for that container until you look away and then look back at it, so weapon handling is not obstructed by the preview.
 
 When `Capture Shared Inputs` is enabled, matching game actions bound to the same key or mouse button are temporarily captured by the mod while the peek window is visible and restored when the window closes. This keeps shared bindings from also triggering game actions such as raising or lowering weapons while scrolling the peek list.
 

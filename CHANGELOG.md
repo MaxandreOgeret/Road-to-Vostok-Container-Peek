@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Closing the peek panel now also works when the held primary or secondary weapon starts firing.
 - Added Mod Configuration Menu sliders for horizontal position offset, vertical position offset, and UI scale.
 
 ## 1.5.0
