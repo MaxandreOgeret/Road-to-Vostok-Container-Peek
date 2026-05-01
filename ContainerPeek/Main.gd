@@ -928,6 +928,7 @@ func _remember_render_state(render_state: Dictionary) -> void:
 
 func _current_summaries(node: Node) -> Dictionary:
 	if _cached_summary_target_id != _current_target_id:
+		_ensure_container_materialized(node)
 		_cached_summaries = ItemSupport.item_summaries(node)
 		_cached_summary_target_id = _current_target_id
 		_cached_summary_signature = _summaries_signature(_cached_summaries)
@@ -2054,6 +2055,7 @@ func _current_target_is_loading() -> bool:
 
 func _try_transfer_selected() -> bool:
 	if _last_focus_node != null and is_instance_valid(_last_focus_node):
+		_ensure_container_materialized(_last_focus_node)
 		return _try_direct_selected_transfer(_last_focus_node)
 	return false
 
@@ -2065,6 +2067,7 @@ func _try_take_all_selected_container() -> bool:
 	if _current_target_is_loading():
 		return false
 
+	_ensure_container_materialized(_last_focus_node)
 	var moved_any := false
 	while true:
 		var slots := ItemSupport.slot_source(_last_focus_node)
@@ -2083,6 +2086,7 @@ func _try_take_all_selected_container() -> bool:
 
 
 func _try_direct_selected_transfer(container_node: Node) -> bool:
+	_ensure_container_materialized(container_node)
 	var item_name := _current_selected_item_name()
 	var slot := ItemSupport.slot_for_item_name(container_node, item_name)
 	if slot == null:
@@ -2134,6 +2138,72 @@ func _refresh_interface_state(interface_node: Node) -> void:
 	# Popup transfers bypass the native inventory loop, so force the same weight/overweight refresh.
 	if interface_node.has_method("UpdateStats"):
 		interface_node.call("UpdateStats", bool(interface_node.visible))
+
+
+func _ensure_container_materialized(container_node: Node) -> bool:
+	if container_node == null or not is_instance_valid(container_node):
+		return false
+	if bool(container_node.get("storaged")):
+		return true
+
+	var source := ItemSupport.slot_source(container_node)
+	var source_count := source.size()
+	var interface_node := _resolve_interface_node()
+	if interface_node == null or not is_instance_valid(interface_node):
+		_log_materialize("skip", container_node, source_count, -1, "missing-interface")
+		return false
+	if _interface_inventory_open():
+		_log_materialize("skip", container_node, source_count, -1, "interface-open")
+		return false
+	if (
+		not interface_node.has_method("UpdateContainerGrid")
+		or not interface_node.has_method("FillContainerGrid")
+		or not interface_node.has_method("StorageContainerGrid")
+		or not interface_node.has_method("ClearContainerGrid")
+	):
+		_log_materialize("skip", container_node, source_count, -1, "missing-method")
+		return false
+
+	var container_grid := _resolve_container_grid(interface_node)
+	if container_grid == null:
+		_log_materialize("skip", container_node, source_count, -1, "missing-grid")
+		return false
+	if container_grid.get_child_count() > 0:
+		_log_materialize(
+			"skip", container_node, source_count, container_grid.get_child_count(), "grid-not-empty"
+		)
+		return false
+
+	var previous_container: Variant = interface_node.get("container")
+	interface_node.set("container", container_node)
+	interface_node.call("UpdateContainerGrid")
+	interface_node.call("FillContainerGrid")
+	var placed_count := container_grid.get_child_count()
+	interface_node.call("StorageContainerGrid")
+	interface_node.call("ClearContainerGrid")
+	interface_node.set("container", previous_container)
+
+	_invalidate_summary_cache()
+	_log_materialize("done", container_node, source_count, placed_count, "")
+	return true
+
+
+func _log_materialize(
+	status: String, container_node: Node, source_count: int, placed_count: int, reason: String
+) -> void:
+	var container_id := -1
+	var container_name := "<unknown>"
+	if container_node != null and is_instance_valid(container_node):
+		container_id = container_node.get_instance_id()
+		container_name = _debug_name(container_node)
+
+	var reason_suffix := "" if reason.is_empty() else " reason=%s" % reason
+	_debug_append_cursor_log(
+		(
+			"[ContainerPeek][Materialize] %s id=%d name='%s' source=%d placed=%d%s"
+			% [status, container_id, container_name, source_count, placed_count, reason_suffix]
+		)
+	)
 
 
 func _resolve_interface_node() -> Node:
@@ -2188,4 +2258,15 @@ func _resolve_inventory_grid(interface_node: Node) -> Node:
 	var inventory := interface_node.get_node_or_null("Inventory")
 	if inventory != null:
 		return inventory.get_node_or_null("Grid")
+	return null
+
+
+func _resolve_container_grid(interface_node: Node) -> Node:
+	var by_prop: Variant = interface_node.get("containerGrid")
+	if by_prop is Node:
+		return by_prop as Node
+
+	var container := interface_node.get_node_or_null("Container")
+	if container != null:
+		return container.get_node_or_null("Grid")
 	return null
