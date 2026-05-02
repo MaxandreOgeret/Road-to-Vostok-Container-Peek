@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.5.2
 
 - Kept the cursor at the same row position after a selected grouped row disappears, moving to the row above when the removed row was last.
 - Restricted VMZ packaging to the runtime mod files plus prefixed `ContainerPeek_LICENSE` and `ContainerPeek_NOTICE` attribution files.
