@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Restricted VMZ packaging to the runtime mod files plus prefixed `ContainerPeek_LICENSE` and `ContainerPeek_NOTICE` attribution files.
+
 ## 1.5.1
 
 - Closing the peek panel now also works when the held primary or secondary weapon starts firing.

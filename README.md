@@ -57,7 +57,7 @@ Debug logging options are session-only and reset to disabled each time the game 
 
 ## Repository Layout
 
-The packaged mod consists of `mod.txt` and the `ContainerPeek/` directory. The runtime logic is split across `ContainerPeek/Main.gd`, which handles scene lifecycle, state, and transfer flow; `ContainerPeek/PanelSupport.gd`, which builds and styles the peek UI; `ContainerPeek/TargetSupport.gd`, which handles target and HUD prompt helpers; `ContainerPeek/Config.gd`, which registers the MCM settings and input actions; `ContainerPeek/ConfigSupport.gd`, which provides runtime configuration helpers; `ContainerPeek/ItemSupport.gd`, which handles item summaries, rarity, weight, value, condition, and selection helpers; and `ContainerPeek/Compat/XPSkillsCompat.gd`, which contains the optional XP & Skills integration.
+The packaged mod consists of `mod.txt`, the `ContainerPeek/` runtime directory, `ContainerPeek_LICENSE`, and `ContainerPeek_NOTICE`. The runtime logic is split across `ContainerPeek/Main.gd`, which handles scene lifecycle, state, and transfer flow; `ContainerPeek/PanelSupport.gd`, which builds and styles the peek UI; `ContainerPeek/TargetSupport.gd`, which handles target and HUD prompt helpers; `ContainerPeek/Config.gd`, which registers the MCM settings and input actions; `ContainerPeek/ConfigSupport.gd`, which provides runtime configuration helpers; `ContainerPeek/ItemSupport.gd`, which handles item summaries, rarity, weight, value, condition, and selection helpers; and `ContainerPeek/Compat/XPSkillsCompat.gd`, which contains the optional XP & Skills integration.
 
 The repository also includes [doc/game-sync.md](doc/game-sync.md), which documents the parts of the mod that intentionally mirror decompiled game logic and should be reviewed after a game update.
 
@@ -69,7 +69,7 @@ Create the mod archive from the repository root with:
 ./scripts/build_vmz.sh
 ```
 
-That produces `ContainerPeek.vmz`, which is a regular zip archive with the `.vmz` extension. The root of the archive contains `mod.txt` and the `ContainerPeek/` directory.
+That produces `ContainerPeek.vmz`, which is a regular zip archive with the `.vmz` extension. The root of the archive contains only `mod.txt`, the `ContainerPeek/` runtime directory, `ContainerPeek_LICENSE`, and `ContainerPeek_NOTICE`.
 
 The build also produces `ContainerPeek.zip`, which is a regular zip file that contains the `.vmz` archive for distribution on sites that expect `.zip` uploads.
 
@@ -99,7 +99,7 @@ The mod requires `Road to Vostok` and the community mod loader format used by th
 
 ## Licensing Note
 
-The repository code is GPL-3.0, but the bundled MP3 files under `ContainerPeek/audio/` are explicitly excluded from that GPL grant. See [NOTICE](NOTICE) for the asset carve-out and source links.
+The repository code is GPL-3.0, but the bundled MP3 files under `ContainerPeek/audio/` are explicitly excluded from that GPL grant. See [NOTICE](NOTICE) for the asset carve-out and source links. The packaged VMZ includes the same license and attribution material as `ContainerPeek_LICENSE` and `ContainerPeek_NOTICE` to avoid generic root filenames.
 
 ## References
 

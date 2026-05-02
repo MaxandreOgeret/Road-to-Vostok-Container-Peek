@@ -65,6 +65,7 @@ Custom corpse rummaging audio sources:
 
 ## Third-Party Asset Notices
 
+- The packaged VMZ includes `ContainerPeek_LICENSE` and `ContainerPeek_NOTICE` for license and attribution details.
 - The bundled corpse rummaging MP3 files are third-party Pixabay assets and are not covered by the GPL license for the mod code.
 - The bundled ammo icon `ammo.svg` is a third-party asset and is not covered by the GPL license for the mod code.
 - Ammo icon attribution: Bullet by Andhika Pramanto from Noun Project (CC BY 3.0)
