@@ -32,7 +32,7 @@ Aiming, or firing an equipped primary or secondary weapon, closes the window for
 
 When `Capture Shared Inputs` is enabled, matching game actions bound to the same key or mouse button are temporarily captured by the mod while the peek window is visible and restored when the window closes. This keeps shared bindings from also triggering game actions such as raising or lowering weapons while scrolling the peek list.
 
-The preview groups identical item names into a single row. Because of that grouping, taking a selected row moves the first matching stack for that name rather than a specific stack instance.
+The preview groups identical item names into a single row. Because of that grouping, taking a selected row moves the first matching stack for that name rather than a specific stack instance. If the selected row disappears after transfer, the cursor stays at the same row position where possible, or moves to the row above when the removed row was last.
 
 When `Rummage Time / Item` is greater than `0`, newly inspected containers reveal grouped rows over time. Setting that value to `0` restores the immediate display behavior. Empty containers still spend one rummage interval in the loading state before showing `Empty`, unless rummaging has been disabled.
 

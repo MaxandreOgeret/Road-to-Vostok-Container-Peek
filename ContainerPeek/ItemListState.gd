@@ -99,7 +99,6 @@ func derive_state(
 				)
 			)
 		_anchored_by_target[target_id] = false
-		_anchor_row_by_target.erase(target_id)
 		_window_start_by_target[target_id] = 0
 	else:
 		var selected_index_for_anchor := _resolved_selected_index(
@@ -151,6 +150,7 @@ func derive_state(
 	var selected_viewport_row := -1
 	if selected_index >= 0:
 		selected_viewport_row = selected_index - window_start
+		_anchor_row_by_target[target_id] = selected_viewport_row
 
 	_debug_log(
 		(
@@ -228,7 +228,7 @@ func move_selection(
 		_anchored_by_target[target_id] = true
 	else:
 		_window_start_by_target[target_id] = 0
-		_anchor_row_by_target.erase(target_id)
+		_anchor_row_by_target[target_id] = next_selection
 		_anchored_by_target[target_id] = false
 
 	_debug_log(
@@ -361,6 +361,10 @@ func _resolved_selected_index(
 			var selected_index := item_names.find(selected_name)
 			if selected_index >= 0:
 				return selected_index
+			if not anchored and _anchor_row_by_target.has(target_id):
+				return clampi(
+					int(_anchor_row_by_target.get(target_id, 0)), 0, item_names.size() - 1
+				)
 
 	if anchored:
 		var window_start := int(_window_start_by_target.get(target_id, 0))

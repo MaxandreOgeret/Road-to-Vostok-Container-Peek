@@ -36,6 +36,15 @@ During that non-full phase, the pre-input non-full rule above applies until the 
 
 If transfer/removal causes the viewport to stop being fully populated, the full-viewport invariant no longer applies and behavior falls back to the non-full-viewport case.
 
+## Removal Row Preservation
+
+When a selected item identity disappears because transfer removed the last grouped row for that name:
+
+- The cursor should stay at the same viewport row whenever another row exists there.
+- If the removed row was the last visible row, the cursor should move to the row above.
+- This applies both before and after the viewport has reached full size.
+- If the selected grouped row still exists after transfer, the cursor stays on that grouped row.
+
 ## Sort Change Reset Rule
 
 When the user changes sort mode:
