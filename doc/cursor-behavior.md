@@ -53,6 +53,14 @@ When the user changes sort mode:
 - The cursor must jump back to the top row of the newly sorted list.
 - The viewport must also reset to the top of the newly sorted list.
 
+## Final Rummage Step
+
+When rummaging is enabled, the rummage timer includes one final no-reveal interval after the last grouped row has appeared.
+
+- The revealed item count remains capped to the real grouped row count.
+- The menu should still be considered loading during this final interval.
+- If the fully revealed list fits in the viewport, a final placeholder row may be shown to communicate that the search is still in progress.
+
 ## Explicit Reset Points
 
 The current cursor/viewport anchoring state is explicitly reset on:

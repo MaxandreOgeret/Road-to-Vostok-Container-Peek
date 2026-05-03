@@ -1033,7 +1033,7 @@ func _is_rummage_loading(container_id: int) -> bool:
 
 
 func _rummage_progress_units(total_item_count: int) -> int:
-	return maxi(1, total_item_count)
+	return maxi(1, total_item_count + 1)
 
 
 func _rummage_seconds_per_item() -> float:
@@ -1339,8 +1339,15 @@ func _render_item_rows(node: Node, summaries: Dictionary) -> void:
 	var locked := bool(node.get("locked"))
 	var selected_index := int(_item_list_model.get("selected_index", -1))
 	var rendered_names := _item_list_model.get("rendered_names", []) as Array
-	var has_placeholder := _visible_item_names.size() < summaries.size()
-	var render_placeholder := bool(_item_list_model.get("render_placeholder", false))
+	var final_rummage_placeholder := _should_render_final_rummage_placeholder(
+		node, summaries, rendered_names
+	)
+	var has_placeholder := (
+		_visible_item_names.size() < summaries.size() or final_rummage_placeholder
+	)
+	var render_placeholder := (
+		bool(_item_list_model.get("render_placeholder", false)) or final_rummage_placeholder
+	)
 	var item_col_width := ITEM_COL_MIN_WIDTH
 	if not summaries.is_empty():
 		item_col_width = _item_name_column_width(summaries)
@@ -1442,7 +1449,7 @@ func _render_item_rows(node: Node, summaries: Dictionary) -> void:
 		_rendered_item_rows.append(row)
 		_items_box.add_child(row)
 
-	if has_placeholder and bool(_item_list_model.get("render_placeholder", false)):
+	if has_placeholder and render_placeholder:
 		_rendered_placeholder_row = PanelSupport.make_placeholder_row(
 			_ui_theme,
 			ITEM_ROW_HEIGHT,
@@ -1469,6 +1476,18 @@ func _render_item_rows(node: Node, summaries: Dictionary) -> void:
 		_queue_scroll_control_visible(selected_row)
 	_debug_log_list_model("render-rows")
 	_debug_queue_scroll_report("render-rows")
+
+
+func _should_render_final_rummage_placeholder(
+	node: Node, summaries: Dictionary, rendered_names: Array
+) -> bool:
+	if summaries.is_empty():
+		return false
+	if not _is_rummage_loading(node.get_instance_id()):
+		return false
+	if _visible_item_names.size() < summaries.size():
+		return false
+	return rendered_names.size() == _visible_item_names.size()
 
 
 func _can_update_rendered_item_rows(rendered_names: Array) -> bool:

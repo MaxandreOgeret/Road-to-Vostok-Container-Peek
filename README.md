@@ -34,7 +34,7 @@ When `Capture Shared Inputs` is enabled, matching game actions bound to the same
 
 The preview groups identical item names into a single row. Because of that grouping, taking a selected row moves the first matching stack for that name rather than a specific stack instance. If the selected row disappears after transfer, the cursor stays at the same row position where possible, or moves to the row above when the removed row was last.
 
-When `Rummage Time / Item` is greater than `0`, newly inspected containers reveal grouped rows over time. Setting that value to `0` restores the immediate display behavior. Empty containers still spend one rummage interval in the loading state before showing `Empty`, unless rummaging has been disabled.
+When `Rummage Time / Item` is greater than `0`, newly inspected containers reveal grouped rows over time. Setting that value to `0` restores the immediate display behavior. Empty containers still spend one rummage interval in the loading state before showing `Empty`, unless rummaging has been disabled. Non-empty containers also spend one final rummage interval after the last grouped row appears, simulating a final search that finds nothing else.
 
 `Take All` is unavailable while rummaging is still in progress. When `Take All` fails because the inventory is full, it stops at the first failed insert so the result stays predictable.
 
