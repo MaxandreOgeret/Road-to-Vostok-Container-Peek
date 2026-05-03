@@ -92,6 +92,7 @@ static func make_header_row(
 	col_separation: int,
 	weight_col_width: float,
 	condition_col_width: float,
+	unit_value_col_width: float,
 	value_col_width: float,
 	numeric_font: Font = null
 ) -> Dictionary:
@@ -105,42 +106,58 @@ static func make_header_row(
 		ui_theme, "Item", 11, dim, item_col_min_width, HORIZONTAL_ALIGNMENT_LEFT, true
 	)
 	row.add_child(item_label)
-	row.add_child(
-		_label(
-			ui_theme,
-			"Weight",
-			11,
-			dim,
-			weight_col_width,
-			HORIZONTAL_ALIGNMENT_RIGHT,
-			false,
-			numeric_font
+	if weight_col_width > 0.0:
+		row.add_child(
+			_label(
+				ui_theme,
+				"Weight",
+				11,
+				dim,
+				weight_col_width,
+				HORIZONTAL_ALIGNMENT_RIGHT,
+				false,
+				numeric_font
+			)
 		)
-	)
-	row.add_child(
-		_label(
-			ui_theme,
-			"Cond.",
-			11,
-			dim,
-			condition_col_width,
-			HORIZONTAL_ALIGNMENT_RIGHT,
-			false,
-			numeric_font
+	if condition_col_width > 0.0:
+		row.add_child(
+			_label(
+				ui_theme,
+				"Cond.",
+				11,
+				dim,
+				condition_col_width,
+				HORIZONTAL_ALIGNMENT_RIGHT,
+				false,
+				numeric_font
+			)
 		)
-	)
-	row.add_child(
-		_label(
-			ui_theme,
-			"Value",
-			11,
-			dim,
-			value_col_width,
-			HORIZONTAL_ALIGNMENT_RIGHT,
-			false,
-			numeric_font
+	if unit_value_col_width > 0.0:
+		row.add_child(
+			_label(
+				ui_theme,
+				"Val.",
+				11,
+				dim,
+				unit_value_col_width,
+				HORIZONTAL_ALIGNMENT_RIGHT,
+				false,
+				numeric_font
+			)
 		)
-	)
+	if value_col_width > 0.0:
+		row.add_child(
+			_label(
+				ui_theme,
+				"Tot. Val.",
+				11,
+				dim,
+				value_col_width,
+				HORIZONTAL_ALIGNMENT_RIGHT,
+				false,
+				numeric_font
+			)
+		)
 
 	return {"row": row, "item_label": item_label}
 
@@ -211,6 +228,7 @@ static func make_placeholder_row(
 	col_separation: int,
 	weight_col_width: float,
 	condition_col_width: float,
+	unit_value_col_width: float,
 	value_col_width: float,
 	index: int,
 	item_col_width: float,
@@ -253,11 +271,39 @@ static func make_placeholder_row(
 	item_filler.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	box.add_child(item_filler)
 
-	box.add_child(make_placeholder_bar(weight_col_width - 12.0, placeholder_blocks, tint))
-	box.add_child(make_placeholder_bar(condition_col_width - 14.0, placeholder_blocks, tint))
-	box.add_child(make_placeholder_bar(value_col_width - 12.0, placeholder_blocks, tint))
+	if weight_col_width > 0.0:
+		box.add_child(
+			make_placeholder_cell(weight_col_width, weight_col_width, placeholder_blocks, tint)
+		)
+	if condition_col_width > 0.0:
+		box.add_child(
+			make_placeholder_cell(
+				condition_col_width, condition_col_width, placeholder_blocks, tint
+			)
+		)
+	if unit_value_col_width > 0.0:
+		box.add_child(
+			make_placeholder_cell(
+				unit_value_col_width, unit_value_col_width, placeholder_blocks, tint
+			)
+		)
+	if value_col_width > 0.0:
+		box.add_child(
+			make_placeholder_cell(value_col_width, value_col_width, placeholder_blocks, tint)
+		)
 
 	return row
+
+
+static func make_placeholder_cell(
+	column_width: float, bar_width: float, placeholder_blocks: Array, tint: Color
+) -> Control:
+	var cell := HBoxContainer.new()
+	cell.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	cell.custom_minimum_size = Vector2(column_width, 0.0)
+	cell.alignment = BoxContainer.ALIGNMENT_END
+	cell.add_child(make_placeholder_bar(bar_width, placeholder_blocks, tint))
+	return cell
 
 
 static func make_placeholder_bar(width: float, placeholder_blocks: Array, tint: Color) -> ColorRect:
@@ -277,6 +323,7 @@ static func make_item_row(
 	col_separation: int,
 	weight_col_width: float,
 	condition_col_width: float,
+	unit_value_col_width: float,
 	value_col_width: float,
 	selected_style: StyleBox,
 	plain_style: StyleBox,
@@ -284,6 +331,7 @@ static func make_item_row(
 	item_col_width: float,
 	weight_text: String,
 	condition_text: String,
+	unit_value_text: String,
 	value_text: String,
 	rarity_color: Color,
 	selected: bool,
@@ -327,46 +375,67 @@ static func make_item_row(
 
 	var dim := Color(1.0, 1.0, 1.0, 0.66)
 	var bright := Color(1.0, 1.0, 1.0, 1.0)
-	var weight_label := _label(
-		ui_theme,
-		weight_text,
-		12,
-		bright if selected else dim,
-		weight_col_width,
-		HORIZONTAL_ALIGNMENT_RIGHT,
-		false,
-		numeric_font
-	)
-	box.add_child(weight_label)
+	var weight_label: Label = null
+	if weight_col_width > 0.0:
+		weight_label = _label(
+			ui_theme,
+			weight_text,
+			12,
+			bright if selected else dim,
+			weight_col_width,
+			HORIZONTAL_ALIGNMENT_RIGHT,
+			false,
+			numeric_font
+		)
+		box.add_child(weight_label)
 
-	var condition_label := _label(
-		ui_theme,
-		condition_text,
-		12,
-		bright if selected else dim,
-		condition_col_width,
-		HORIZONTAL_ALIGNMENT_RIGHT,
-		false,
-		numeric_font
-	)
-	box.add_child(condition_label)
+	var condition_label: Label = null
+	if condition_col_width > 0.0:
+		condition_label = _label(
+			ui_theme,
+			condition_text,
+			12,
+			bright if selected else dim,
+			condition_col_width,
+			HORIZONTAL_ALIGNMENT_RIGHT,
+			false,
+			numeric_font
+		)
+		box.add_child(condition_label)
 
-	var value_label := _label(
-		ui_theme,
-		value_text,
-		12,
-		bright if selected else dim,
-		value_col_width,
-		HORIZONTAL_ALIGNMENT_RIGHT,
-		false,
-		numeric_font
-	)
-	box.add_child(value_label)
+	var unit_value_label: Label = null
+	if unit_value_col_width > 0.0:
+		unit_value_label = _label(
+			ui_theme,
+			unit_value_text,
+			12,
+			bright if selected else dim,
+			unit_value_col_width,
+			HORIZONTAL_ALIGNMENT_RIGHT,
+			false,
+			numeric_font
+		)
+		box.add_child(unit_value_label)
+
+	var value_label: Label = null
+	if value_col_width > 0.0:
+		value_label = _label(
+			ui_theme,
+			value_text,
+			12,
+			bright if selected else dim,
+			value_col_width,
+			HORIZONTAL_ALIGNMENT_RIGHT,
+			false,
+			numeric_font
+		)
+		box.add_child(value_label)
 
 	row.set_meta(&"peek_prefix_label", prefix_label)
 	row.set_meta(&"peek_name_label", name_label)
 	row.set_meta(&"peek_weight_label", weight_label)
 	row.set_meta(&"peek_condition_label", condition_label)
+	row.set_meta(&"peek_unit_value_label", unit_value_label)
 	row.set_meta(&"peek_value_label", value_label)
 	row.set_meta(&"peek_rarity_color", rarity_color)
 	row.set_meta(&"peek_item_col_width", item_col_width)
@@ -383,6 +452,7 @@ static func update_item_row(
 	item_col_width: float,
 	weight_text: String,
 	condition_text: String,
+	unit_value_text: String,
 	value_text: String,
 	rarity_color: Color,
 	left_icon: Texture2D,
@@ -423,6 +493,11 @@ static func update_item_row(
 	if condition_label is Label:
 		(condition_label as Label).text = condition_text
 		(condition_label as Label).add_theme_color_override("font_color", numeric_color)
+
+	var unit_value_label := row.get_meta(&"peek_unit_value_label", null)
+	if unit_value_label is Label:
+		(unit_value_label as Label).text = unit_value_text
+		(unit_value_label as Label).add_theme_color_override("font_color", numeric_color)
 
 	var value_label := row.get_meta(&"peek_value_label", null)
 	if value_label is Label:
@@ -532,6 +607,12 @@ static func apply_item_row_selection(
 	var condition_label := row.get_meta(&"peek_condition_label", null)
 	if condition_label is Label:
 		(condition_label as Label).add_theme_color_override(
+			"font_color", Color(1.0, 1.0, 1.0, 1.0) if selected else Color(1.0, 1.0, 1.0, 0.66)
+		)
+
+	var unit_value_label := row.get_meta(&"peek_unit_value_label", null)
+	if unit_value_label is Label:
+		(unit_value_label as Label).add_theme_color_override(
 			"font_color", Color(1.0, 1.0, 1.0, 1.0) if selected else Color(1.0, 1.0, 1.0, 0.66)
 		)
 

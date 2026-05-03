@@ -15,11 +15,11 @@ The goal is simple: faster looting, less menu friction, and better flow.
 - Compact loot preview window for containers in range
 - Fixed table header with a real scrollable list
 - Native-style item category icons with an optional toggle
-- Weight, condition, and value columns
+- Weight, condition, item value, and total value columns
 - Mouse wheel row selection
 - `F` to take the selected item
 - `R` to take all
-- `V` to cycle sorting by name, rarity, weight, and value
+- `V` to cycle through the currently available sort modes
 - Aim/fire-aware hiding while a primary or secondary weapon is held
 - Optional shared input capture for controls that overlap with game bindings
 - Optional rarity-colored item names

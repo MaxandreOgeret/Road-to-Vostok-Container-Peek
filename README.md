@@ -16,7 +16,7 @@
 
 The mod follows the game's own interaction logic instead of running a separate container scan. It uses the live interactor target, respects the container's interaction range when that information is available, and falls back to `2.5m` when it is not. The peek window hides when the game is paused so it does not overlap the pause menu.
 
-The loot window shows item names, total displayed weight, condition, and value in a compact table with a fixed header and a real scrollbar. Rarity colors can be enabled for item names, and the selected row keeps its rarity color instead of switching to a neutral highlight color.
+The loot window shows item names, total displayed weight, condition, single item value, and total grouped value in a compact table with a fixed header and a real scrollbar. Rarity colors can be enabled for item names, and the selected row keeps its rarity color instead of switching to a neutral highlight color.
 
 The mod also supports an optional rummaging system for first-time inspection. When rummaging is enabled, grouped item rows are revealed over time with a rotating icon, a single skeleton placeholder row, and optional audio. Corpse rummaging uses dedicated bundled sounds, while other containers keep the existing game-based audio behavior. By default, the mod stays enabled in shelters, but rummaging is skipped there and the full contents are shown immediately unless that behavior is changed in Mod Configuration Menu.
 
@@ -24,7 +24,7 @@ Take behavior is designed to stay close to the base game. You can take the selec
 
 ## Controls
 
-By default, the mouse wheel moves the selection in the loot list, `F` takes the selected entry to your inventory, `R` takes everything from the current container, and `V` cycles sorting between name, rarity, weight, and value. These bindings can be changed in Mod Configuration Menu when MCM is installed.
+By default, the mouse wheel moves the selection in the loot list, `F` takes the selected entry to your inventory, `R` takes everything from the current container, and `V` cycles through the currently available sort modes. Name sorting is always available, rarity sorting is available when rarity colors are enabled, and column sorting follows the enabled table columns. These bindings can be changed in Mod Configuration Menu when MCM is installed.
 
 ## Behavior Notes
 
@@ -42,9 +42,9 @@ The condition column is only shown for item types that the game itself treats as
 
 ## Configuration
 
-When Mod Configuration Menu is installed, the mod exposes settings for the transfer keybind, the take-all keybind, the sort keybind, shared input capture, rarity colors, rummage timing, rummage audio, whether the mod is enabled in shelters, whether rummaging is allowed in shelters, menu opacity, menu position offsets, UI scale, the optional `XP & Skills System` compatibility hook, and the three supported rarity color overrides.
+When Mod Configuration Menu is installed, the mod exposes settings for the transfer keybind, the take-all keybind, the sort keybind, shared input capture, rarity colors, category icons, the four optional data columns, rummage timing, rummage audio, whether the mod is enabled in shelters, whether rummaging is allowed in shelters, menu opacity, menu position offsets, UI scale, the optional `XP & Skills System` compatibility hook, and the three supported rarity color overrides.
 
-`Capture Shared Inputs` controls whether the peek window temporarily blocks game actions that share the peek controls. `Rummage Time / Item` controls how long each grouped item row takes to appear during first inspection, and a value of `0` disables rummaging completely. `Rummage Audio` enables or disables the rummaging sound effect during reveal. `Show Category Icons` toggles the left-side item category icons in the preview list. `Enable In Shelter` controls whether the peek menu appears at all while you are in the shelter. `Rummage In Shelter` controls whether the same delay is applied while you are in the shelter. `Menu Opacity` changes the background opacity of the panel without affecting text readability. `Horizontal Pos Offset`, `Vertical Pos Offset`, and `UI Scale` adjust the panel's placement and size while keeping it clamped to the visible screen. `XP & Skills Compat` lets popup inspection trigger that mod's search XP and scavenger bonus path without opening the native container UI. The MCM options are grouped by controls, display, rummage, shelter, compatibility, and debug settings.
+`Capture Shared Inputs` controls whether the peek window temporarily blocks game actions that share the peek controls. `Rummage Time / Item` controls how long each grouped item row takes to appear during first inspection, and a value of `0` disables rummaging completely. `Rummage Audio` enables or disables the rummaging sound effect during reveal. `Show Category Icons` toggles the left-side item category icons in the preview list. `Show Weight Column`, `Show Condition Column`, `Show Val. Column`, and `Show Tot. Val. Column` toggle the optional data columns and their sort modes. `Enable In Shelter` controls whether the peek menu appears at all while you are in the shelter. `Rummage In Shelter` controls whether the same delay is applied while you are in the shelter. `Menu Opacity` changes the background opacity of the panel without affecting text readability. `Horizontal Pos Offset`, `Vertical Pos Offset`, and `UI Scale` adjust the panel's placement and size while keeping it clamped to the visible screen. `XP & Skills Compat` lets popup inspection trigger that mod's search XP and scavenger bonus path without opening the native container UI. The MCM options are grouped by controls, display, rummage, shelter, compatibility, and debug settings.
 
 Debug logging options are session-only and reset to disabled each time the game starts.
 

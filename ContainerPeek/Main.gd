@@ -36,7 +36,9 @@ const ITEM_COL_MIN_WIDTH := 120.0
 const COL_SEPARATION := 8
 const WEIGHT_COL_WIDTH := 56.0
 const CONDITION_COL_WIDTH := 62.0
+const UNIT_VALUE_COL_WIDTH := 52.0
 const VALUE_COL_WIDTH := 60.0
+const HEADER_FONT_SIZE := 11
 const TRANSFER_ACTION := &"container_peek_transfer"
 const TAKE_ALL_ACTION := &"container_peek_take_all"
 const SORT_ACTION := &"container_peek_sort"
@@ -51,6 +53,10 @@ const PANEL_OFFSET_Y_KEY := "panel_offset_y"
 const UI_SCALE_KEY := "ui_scale"
 const XP_SKILLS_COMPAT_KEY := "xp_skills_compat"
 const SHOW_CATEGORY_ICONS_KEY := "show_category_icons"
+const SHOW_WEIGHT_COLUMN_KEY := "show_weight_column"
+const SHOW_CONDITION_COLUMN_KEY := "show_condition_column"
+const SHOW_VALUE_COLUMN_KEY := "show_value_column"
+const SHOW_TOTAL_VALUE_COLUMN_KEY := "show_total_value_column"
 const CURSOR_LOG_KEY := "debug_cursor_log"
 const PERFORMANCE_LOG_KEY := "debug_performance_log"
 const RARITY_COMMON_COLOR_KEY := "rarity_common_color"
@@ -65,6 +71,8 @@ const SORT_MODE_NAME := 0
 const SORT_MODE_RARITY := 1
 const SORT_MODE_WEIGHT := 2
 const SORT_MODE_VALUE := 3
+const SORT_MODE_CONDITION := 4
+const SORT_MODE_UNIT_VALUE := 5
 const SORT_MODE_SECTION := "State"
 const SORT_MODE_KEY := "sort_mode"
 const DEBUG_CURSOR_LOG_PATH := "user://containerpeek_cursor.log"
@@ -103,6 +111,7 @@ var _last_ui_scale := -1.0
 var _last_hint_text := ""
 var _last_header_gutter := -1
 var _last_icons_enabled := true
+var _last_columns_signature := ""
 var _layout_dirty := true
 var _debug_last_target_scroll := -1
 var _debug_last_scroll_control_name := ""
@@ -147,6 +156,10 @@ var _cursor_log_enabled_current := false
 var _performance_log_enabled_current := false
 var _rarity_colors_enabled_current := true
 var _show_category_icons_current := true
+var _show_weight_column_current := true
+var _show_condition_column_current := true
+var _show_value_column_current := true
+var _show_total_value_column_current := true
 var _rummage_seconds_per_item_current := 0.5
 var _rummage_audio_enabled_current := true
 var _capture_game_input_enabled_current := true
@@ -164,8 +177,9 @@ func _ready() -> void:
 	_sort_mode = clampi(
 		ConfigSupport.int_setting(self, SORT_MODE_SECTION, SORT_MODE_KEY, SORT_MODE_NAME),
 		SORT_MODE_NAME,
-		SORT_MODE_VALUE
+		SORT_MODE_UNIT_VALUE
 	)
+	_ensure_sort_mode_available()
 
 
 func _exit_tree() -> void:
@@ -313,9 +327,10 @@ func _build_ui(host: Node) -> void:
 		ROW_PREFIX_WIDTH,
 		ITEM_COL_MIN_WIDTH,
 		COL_SEPARATION,
-		WEIGHT_COL_WIDTH,
-		CONDITION_COL_WIDTH,
-		VALUE_COL_WIDTH,
+		_weight_col_width(),
+		_condition_col_width(),
+		_value_col_width(),
+		_total_value_col_width(),
 		_numeric_column_font()
 	)
 	_header_item_label = header_data.get("item_label", null) as Label
@@ -836,9 +851,11 @@ func _refresh_hint_if_needed() -> void:
 
 func _refresh_header_if_needed() -> void:
 	var icons_enabled := _show_category_icons()
-	if icons_enabled == _last_icons_enabled:
+	var columns_signature := _column_visibility_signature()
+	if icons_enabled == _last_icons_enabled and columns_signature == _last_columns_signature:
 		return
 	_last_icons_enabled = icons_enabled
+	_last_columns_signature = columns_signature
 	_rebuild_header_row()
 	_layout_dirty = true
 
@@ -856,9 +873,10 @@ func _rebuild_header_row() -> void:
 		ROW_PREFIX_WIDTH,
 		maxf(_cached_item_col_width, ITEM_COL_MIN_WIDTH),
 		COL_SEPARATION,
-		WEIGHT_COL_WIDTH,
-		CONDITION_COL_WIDTH,
-		VALUE_COL_WIDTH,
+		_weight_col_width(),
+		_condition_col_width(),
+		_value_col_width(),
+		_total_value_col_width(),
 		_numeric_column_font()
 	)
 	_header_item_label = header_data.get("item_label", null) as Label
@@ -907,6 +925,7 @@ func _build_render_state(summary_signature: String, loading: bool) -> Dictionary
 		"loading": loading,
 		"rarity_colors": _rarity_colors_enabled() if has_visible_rows else false,
 		"show_icons": _show_category_icons() if has_visible_rows else false,
+		"columns": _column_visibility_signature(),
 		"rarity_signature": _rarity_color_signature() if has_visible_rows else "",
 		"sort_mode": _sort_mode,
 	}
@@ -1364,9 +1383,10 @@ func _render_item_rows(node: Node, summaries: Dictionary) -> void:
 				_icon_col_width(),
 				ROW_PREFIX_WIDTH,
 				COL_SEPARATION,
-				WEIGHT_COL_WIDTH,
-				CONDITION_COL_WIDTH,
-				VALUE_COL_WIDTH,
+				_weight_col_width(),
+				_condition_col_width(),
+				_value_col_width(),
+				_total_value_col_width(),
 				0,
 				ITEM_COL_MIN_WIDTH,
 				_placeholder_blocks,
@@ -1396,15 +1416,17 @@ func _render_item_rows(node: Node, summaries: Dictionary) -> void:
 			_icon_col_width(),
 			ROW_PREFIX_WIDTH,
 			COL_SEPARATION,
-			WEIGHT_COL_WIDTH,
-			CONDITION_COL_WIDTH,
-			VALUE_COL_WIDTH,
+			_weight_col_width(),
+			_condition_col_width(),
+			_value_col_width(),
+			_total_value_col_width(),
 			_row_style(true),
 			_row_style(false),
 			line_text,
 			item_col_width,
 			ItemSupport.format_weight(float(summary.get("weight", 0.0))),
 			str(summary.get("condition", "--")),
+			ItemSupport.format_value(int(summary.get("unit_value", 0))),
 			ItemSupport.format_value(int(summary.get("value", 0))),
 			ItemSupport.rarity_color(
 				str(summary.get("rarity", ItemSupport.RARITY_COMMON)),
@@ -1428,9 +1450,10 @@ func _render_item_rows(node: Node, summaries: Dictionary) -> void:
 			_icon_col_width(),
 			ROW_PREFIX_WIDTH,
 			COL_SEPARATION,
-			WEIGHT_COL_WIDTH,
-			CONDITION_COL_WIDTH,
-			VALUE_COL_WIDTH,
+			_weight_col_width(),
+			_condition_col_width(),
+			_value_col_width(),
+			_total_value_col_width(),
 			_visible_item_names.size(),
 			item_col_width,
 			_placeholder_blocks,
@@ -1463,7 +1486,18 @@ func _can_update_rendered_item_rows(rendered_names: Array) -> bool:
 		var row := row_variant as Control
 		if row == null or not is_instance_valid(row):
 			return false
+		if not _row_columns_match_settings(row):
+			return false
 	return true
+
+
+func _row_columns_match_settings(row: Control) -> bool:
+	return (
+		_show_weight_column() == (row.get_meta(&"peek_weight_label", null) is Label)
+		and _show_condition_column() == (row.get_meta(&"peek_condition_label", null) is Label)
+		and _show_value_column() == (row.get_meta(&"peek_unit_value_label", null) is Label)
+		and _show_total_value_column() == (row.get_meta(&"peek_value_label", null) is Label)
+	)
 
 
 func _update_rendered_item_rows(
@@ -1492,6 +1526,7 @@ func _update_rendered_item_rows(
 			item_col_width,
 			ItemSupport.format_weight(float(summary.get("weight", 0.0))),
 			str(summary.get("condition", "--")),
+			ItemSupport.format_value(int(summary.get("unit_value", 0))),
 			ItemSupport.format_value(int(summary.get("value", 0))),
 			ItemSupport.rarity_color(
 				str(summary.get("rarity", ItemSupport.RARITY_COMMON)),
@@ -1512,7 +1547,11 @@ func _update_rendered_item_rows(
 
 
 func _cycle_sort_mode() -> void:
-	_sort_mode = posmod(_sort_mode + 1, SORT_MODE_VALUE + 1)
+	var modes := _available_sort_modes()
+	var current_index := modes.find(_sort_mode)
+	if current_index < 0:
+		current_index = 0
+	_sort_mode = int(modes[posmod(current_index + 1, modes.size())])
 	_store_sort_mode()
 	_refresh_hint_if_needed()
 	_reset_view_for_sort_change()
@@ -1560,10 +1599,39 @@ func _sort_mode_label() -> String:
 			return "Rarity"
 		SORT_MODE_WEIGHT:
 			return "Weight"
+		SORT_MODE_CONDITION:
+			return "Condition"
+		SORT_MODE_UNIT_VALUE:
+			return "Val."
 		SORT_MODE_VALUE:
-			return "Value"
+			return "Tot. Val."
 		_:
 			return "Name"
+
+
+func _available_sort_modes() -> Array:
+	var modes: Array = [SORT_MODE_NAME]
+	if _rarity_colors_enabled():
+		modes.append(SORT_MODE_RARITY)
+	if _show_weight_column():
+		modes.append(SORT_MODE_WEIGHT)
+	if _show_condition_column():
+		modes.append(SORT_MODE_CONDITION)
+	if _show_value_column():
+		modes.append(SORT_MODE_UNIT_VALUE)
+	if _show_total_value_column():
+		modes.append(SORT_MODE_VALUE)
+	return modes
+
+
+func _ensure_sort_mode_available() -> void:
+	if _available_sort_modes().has(_sort_mode):
+		return
+	_sort_mode = SORT_MODE_NAME
+	_store_sort_mode()
+	if _current_target_id != -1:
+		_reset_view_for_sort_change()
+		_last_render_target_id = -1
 
 
 func _item_name_column_width(summaries: Dictionary) -> float:
@@ -1918,6 +1986,14 @@ func _sync_runtime_settings(force: bool = false) -> void:
 	_performance_log_enabled_current = ConfigSupport.bool_setting(self, PERFORMANCE_LOG_KEY, false)
 	_rarity_colors_enabled_current = ConfigSupport.bool_setting(self, "rarity_colors", true)
 	_show_category_icons_current = ConfigSupport.bool_setting(self, SHOW_CATEGORY_ICONS_KEY, true)
+	_show_weight_column_current = ConfigSupport.bool_setting(self, SHOW_WEIGHT_COLUMN_KEY, true)
+	_show_condition_column_current = ConfigSupport.bool_setting(
+		self, SHOW_CONDITION_COLUMN_KEY, true
+	)
+	_show_value_column_current = ConfigSupport.bool_setting(self, SHOW_VALUE_COLUMN_KEY, true)
+	_show_total_value_column_current = ConfigSupport.bool_setting(
+		self, SHOW_TOTAL_VALUE_COLUMN_KEY, true
+	)
 	_capture_game_input_enabled_current = ConfigSupport.bool_setting(
 		self, CAPTURE_GAME_INPUT_KEY, true
 	)
@@ -1934,6 +2010,7 @@ func _sync_runtime_settings(force: bool = false) -> void:
 	_rummage_seconds_per_item_current = _configured_rummage_seconds_per_item()
 	_rarity_color_map_current = _build_rarity_color_map()
 	_rarity_color_signature_current = _build_rarity_color_signature(_rarity_color_map_current)
+	_ensure_sort_mode_available()
 	_item_list.set_debug_enabled(_cursor_log_enabled_current, DEBUG_CURSOR_LOG_PATH)
 	_game_input.set_debug_logger(Callable(self, "_debug_append_cursor_log"))
 
@@ -1952,6 +2029,64 @@ func _ui_scale() -> float:
 
 func _show_category_icons() -> bool:
 	return _show_category_icons_current
+
+
+func _show_weight_column() -> bool:
+	return _show_weight_column_current
+
+
+func _show_condition_column() -> bool:
+	return _show_condition_column_current
+
+
+func _show_value_column() -> bool:
+	return _show_value_column_current
+
+
+func _show_total_value_column() -> bool:
+	return _show_total_value_column_current
+
+
+func _weight_col_width() -> float:
+	return _resolved_column_width(WEIGHT_COL_WIDTH, "Weight") if _show_weight_column() else 0.0
+
+
+func _condition_col_width() -> float:
+	return _resolved_column_width(CONDITION_COL_WIDTH, "Cond.") if _show_condition_column() else 0.0
+
+
+func _value_col_width() -> float:
+	return _resolved_column_width(UNIT_VALUE_COL_WIDTH, "Val.") if _show_value_column() else 0.0
+
+
+func _total_value_col_width() -> float:
+	return (
+		_resolved_column_width(VALUE_COL_WIDTH, "Tot. Val.") if _show_total_value_column() else 0.0
+	)
+
+
+func _resolved_column_width(base_width: float, header_text: String) -> float:
+	return maxf(base_width, _measure_numeric_text_width(header_text, HEADER_FONT_SIZE))
+
+
+func _measure_numeric_text_width(text: String, font_size: int) -> float:
+	var width := maxf(0.0, float(text.length() * 7))
+	var font := _numeric_column_font()
+	if font != null:
+		width = ceil(font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1.0, font_size).x)
+	return width
+
+
+func _column_visibility_signature() -> String:
+	return (
+		"%s:%s:%s:%s"
+		% [
+			str(_show_weight_column()),
+			str(_show_condition_column()),
+			str(_show_value_column()),
+			str(_show_total_value_column()),
+		]
+	)
 
 
 func _rarity_color_map() -> Dictionary:

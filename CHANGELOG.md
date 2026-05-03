@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Added a `Val.` column for single item value alongside the existing `Tot. Val.` grouped value column.
+- Added Mod Configuration Menu toggles for the Weight, Cond., Val., and Tot. Val. columns.
+- Limited sort cycling to the currently available sort modes for enabled display columns.
+
 ## 1.5.2
 
 - Kept the cursor at the same row position after a selected grouped row disappears, moving to the row above when the removed row was last.

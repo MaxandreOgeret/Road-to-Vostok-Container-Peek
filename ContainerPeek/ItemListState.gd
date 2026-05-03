@@ -5,6 +5,8 @@ const SORT_MODE_NAME := 0
 const SORT_MODE_RARITY := 1
 const SORT_MODE_WEIGHT := 2
 const SORT_MODE_VALUE := 3
+const SORT_MODE_CONDITION := 4
+const SORT_MODE_UNIT_VALUE := 5
 const RARITY_COMMON := "Common"
 
 var _debug_enabled := false
@@ -410,6 +412,16 @@ static func _item_name_less(a: String, b: String, summaries: Dictionary, sort_mo
 			var b_value := int(b_summary.get("value", 0))
 			if a_value != b_value:
 				return a_value > b_value
+		SORT_MODE_CONDITION:
+			var a_condition := float(a_summary.get("condition_sort", -1.0))
+			var b_condition := float(b_summary.get("condition_sort", -1.0))
+			if not is_equal_approx(a_condition, b_condition):
+				return a_condition > b_condition
+		SORT_MODE_UNIT_VALUE:
+			var a_unit_value := int(a_summary.get("unit_value", 0))
+			var b_unit_value := int(b_summary.get("unit_value", 0))
+			if a_unit_value != b_unit_value:
+				return a_unit_value > b_unit_value
 		_:
 			pass
 

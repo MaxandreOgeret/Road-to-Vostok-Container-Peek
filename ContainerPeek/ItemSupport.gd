@@ -39,7 +39,19 @@ static func item_summaries(node: Node) -> Dictionary:
 
 	for item_name in result.keys():
 		var summary := result[item_name] as Dictionary
-		summary["condition"] = format_condition(summary.get("condition_values", []) as Array)
+		var amount := maxi(1, int(summary.get("amount", 1)))
+		var value := int(summary.get("value", 0))
+		var condition_values := summary.get("condition_values", []) as Array
+		var condition_total := 0
+		for condition_value in condition_values:
+			condition_total += int(condition_value)
+		summary["condition"] = format_condition(condition_values)
+		summary["condition_sort"] = (
+			-1.0
+			if condition_values.is_empty()
+			else float(condition_total) / float(condition_values.size())
+		)
+		summary["unit_value"] = int(round(float(value) / float(amount)))
 		summary.erase("condition_values")
 		result[item_name] = summary
 

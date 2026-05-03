@@ -15,6 +15,10 @@ const SORT_ACTION := &"container_peek_sort"
 const CAPTURE_GAME_INPUT_KEY := "capture_game_input"
 const RARITY_COLORS_KEY := "rarity_colors"
 const SHOW_CATEGORY_ICONS_KEY := "show_category_icons"
+const SHOW_WEIGHT_COLUMN_KEY := "show_weight_column"
+const SHOW_CONDITION_COLUMN_KEY := "show_condition_column"
+const SHOW_VALUE_COLUMN_KEY := "show_value_column"
+const SHOW_TOTAL_VALUE_COLUMN_KEY := "show_total_value_column"
 const RUMMAGE_TIME_KEY := "rummage_seconds_per_item"
 const RUMMAGE_AUDIO_KEY := "rummage_audio"
 const ENABLE_IN_SHELTER_KEY := "enable_in_shelter"
@@ -252,6 +256,62 @@ func _build_default_config() -> ConfigFile:
 				"default": true,
 				"value": true,
 				"menu_pos": 100,
+			}
+		)
+	)
+	(
+		config
+		. set_value(
+			"Bool",
+			SHOW_WEIGHT_COLUMN_KEY,
+			{
+				"name": "Show Weight Column",
+				"tooltip": "Display the total weight column in the preview list.",
+				"default": true,
+				"value": true,
+				"menu_pos": 102,
+			}
+		)
+	)
+	(
+		config
+		. set_value(
+			"Bool",
+			SHOW_CONDITION_COLUMN_KEY,
+			{
+				"name": "Show Condition Column",
+				"tooltip": "Display the condition column in the preview list.",
+				"default": true,
+				"value": true,
+				"menu_pos": 104,
+			}
+		)
+	)
+	(
+		config
+		. set_value(
+			"Bool",
+			SHOW_VALUE_COLUMN_KEY,
+			{
+				"name": "Show Val. Column",
+				"tooltip": "Display the single item value column in the preview list.",
+				"default": true,
+				"value": true,
+				"menu_pos": 106,
+			}
+		)
+	)
+	(
+		config
+		. set_value(
+			"Bool",
+			SHOW_TOTAL_VALUE_COLUMN_KEY,
+			{
+				"name": "Show Tot. Val. Column",
+				"tooltip": "Display the total grouped value column in the preview list.",
+				"default": true,
+				"value": true,
+				"menu_pos": 108,
 			}
 		)
 	)
