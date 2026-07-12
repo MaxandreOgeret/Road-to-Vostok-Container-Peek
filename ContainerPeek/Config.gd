@@ -15,6 +15,7 @@ const SORT_ACTION := &"container_peek_sort"
 const CAPTURE_GAME_INPUT_KEY := "capture_game_input"
 const RARITY_COLORS_KEY := "rarity_colors"
 const SHOW_CATEGORY_ICONS_KEY := "show_category_icons"
+const SHOW_HELP_HINT_KEY := "show_help_hint"
 const SHOW_WEIGHT_COLUMN_KEY := "show_weight_column"
 const SHOW_CONDITION_COLUMN_KEY := "show_condition_column"
 const SHOW_VALUE_COLUMN_KEY := "show_value_column"
@@ -37,6 +38,9 @@ const SORT_MODE_SECTION := "State"
 const SORT_MODE_KEY := "sort_mode"
 
 var _config := ConfigFile.new()
+# Cached default config: the built defaults depend only on session-stable mod
+# detection (see _xp_skills_detected), so building once and reusing is safe.
+var _default_config: ConfigFile
 var _mcm_helpers: Resource
 
 
@@ -204,7 +208,11 @@ func _build_default_config() -> ConfigFile:
 			{
 				"name": "Cycle Sort",
 				"tooltip":
-				"Cycle the preview list between name, rarity, weight, and value sorting.",
+				(
+					"Cycle the preview list through the available sort modes: name, plus"
+					+ " rarity and any enabled data columns (weight, condition, value,"
+					+ " total value)."
+				),
 				"default": KEY_V,
 				"default_type": "Key",
 				"value": KEY_V,
@@ -256,6 +264,24 @@ func _build_default_config() -> ConfigFile:
 				"default": true,
 				"value": true,
 				"menu_pos": 100,
+			}
+		)
+	)
+	(
+		config
+		. set_value(
+			"Bool",
+			SHOW_HELP_HINT_KEY,
+			{
+				"name": "Show Controls Hint",
+				"tooltip":
+				(
+					"Display the controls hint line (scroll, take, take-all, sort) below"
+					+ " the preview list."
+				),
+				"default": true,
+				"value": true,
+				"menu_pos": 101,
 			}
 		)
 	)
@@ -436,10 +462,14 @@ func _build_default_config() -> ConfigFile:
 			PANEL_OPACITY_KEY,
 			{
 				"name": "Menu Opacity",
-				"tooltip": "Opacity of the peek menu background. Does not affect text.",
+				"tooltip":
+				(
+					"Opacity of the peek menu background. Set to 0 for an invisible"
+					+ " background. Does not affect text."
+				),
 				"default": 0.9,
 				"value": 0.9,
-				"minRange": 0.1,
+				"minRange": 0.0,
 				"maxRange": 1.0,
 				"step": 0.05,
 				"menu_pos": 110,
@@ -573,8 +603,14 @@ func _binding_data(action_name: StringName) -> Dictionary:
 	return _default_binding_data(action_name)
 
 
+func _cached_default_config() -> ConfigFile:
+	if _default_config == null:
+		_default_config = _build_default_config()
+	return _default_config
+
+
 func _default_binding_data(action_name: StringName) -> Dictionary:
-	var defaults := _build_default_config()
+	var defaults := _cached_default_config()
 	var data: Variant = defaults.get_value("Keycode", String(action_name), {})
 	return data.duplicate(true) if data is Dictionary else {}
 

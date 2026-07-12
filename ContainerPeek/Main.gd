@@ -53,12 +53,14 @@ const PANEL_OFFSET_Y_KEY := "panel_offset_y"
 const UI_SCALE_KEY := "ui_scale"
 const XP_SKILLS_COMPAT_KEY := "xp_skills_compat"
 const SHOW_CATEGORY_ICONS_KEY := "show_category_icons"
+const SHOW_HELP_HINT_KEY := "show_help_hint"
 const SHOW_WEIGHT_COLUMN_KEY := "show_weight_column"
 const SHOW_CONDITION_COLUMN_KEY := "show_condition_column"
 const SHOW_VALUE_COLUMN_KEY := "show_value_column"
 const SHOW_TOTAL_VALUE_COLUMN_KEY := "show_total_value_column"
 const CURSOR_LOG_KEY := "debug_cursor_log"
 const PERFORMANCE_LOG_KEY := "debug_performance_log"
+const RARITY_COLORS_KEY := "rarity_colors"
 const RARITY_COMMON_COLOR_KEY := "rarity_common_color"
 const RARITY_RARE_COLOR_KEY := "rarity_rare_color"
 const RARITY_LEGENDARY_COLOR_KEY := "rarity_legendary_color"
@@ -156,12 +158,15 @@ var _cursor_log_enabled_current := false
 var _performance_log_enabled_current := false
 var _rarity_colors_enabled_current := true
 var _show_category_icons_current := true
+var _show_help_hint_current := true
 var _show_weight_column_current := true
 var _show_condition_column_current := true
 var _show_value_column_current := true
 var _show_total_value_column_current := true
 var _rummage_seconds_per_item_current := 0.5
 var _rummage_audio_enabled_current := true
+var _enable_in_shelter_current := true
+var _rummage_in_shelter_current := false
 var _capture_game_input_enabled_current := true
 var _panel_opacity_current := 0.9
 var _panel_offset_current := Vector2.ZERO
@@ -840,6 +845,13 @@ func _refresh_hint_if_needed() -> void:
 	if _hint_label == null:
 		return
 
+	var show_hint := _show_help_hint()
+	if _hint_label.visible != show_hint:
+		_hint_label.visible = show_hint
+		_layout_dirty = true
+	if not show_hint:
+		return
+
 	var hint_text := _hint_text()
 	if _last_hint_text == hint_text:
 		return
@@ -1047,11 +1059,11 @@ func _configured_rummage_seconds_per_item() -> float:
 
 
 func _shelter_disables_mod() -> bool:
-	return _in_shelter() and not ConfigSupport.bool_setting(self, ENABLE_IN_SHELTER_KEY, true)
+	return _in_shelter() and not _enable_in_shelter_current
 
 
 func _shelter_bypasses_rummaging() -> bool:
-	return _in_shelter() and not ConfigSupport.bool_setting(self, RUMMAGE_IN_SHELTER_KEY, false)
+	return _in_shelter() and not _rummage_in_shelter_current
 
 
 func _in_shelter() -> bool:
@@ -1087,10 +1099,6 @@ func _play_rummage_sound() -> void:
 	if tree == null:
 		return
 
-	var audio := AUDIO_INSTANCE_2D_SCENE.instantiate()
-	if audio == null:
-		return
-
 	if _is_corpse_focus():
 		var corpse_stream := _load_corpse_rummage_stream()
 		if corpse_stream == null:
@@ -1106,8 +1114,8 @@ func _play_rummage_sound() -> void:
 		_seek_rummage_sound_random_offset()
 		return
 
-	if AUDIO_INSTANCE_2D_SCENE == null or RUMMAGE_AUDIO_EVENT == null:
-		_stop_rummage_sound()
+	var audio := AUDIO_INSTANCE_2D_SCENE.instantiate()
+	if audio == null:
 		return
 	tree.get_root().add_child(audio)
 	_rummage_audio = audio as AudioStreamPlayer
@@ -1487,7 +1495,11 @@ func _should_render_final_rummage_placeholder(
 		return false
 	if _visible_item_names.size() < summaries.size():
 		return false
-	return rendered_names.size() == _visible_item_names.size()
+	# All items revealed but the rummage timer is still finishing: show the trailing
+	# "searching" row whenever the last item sits in the rendered window. This covers
+	# windowed lists too, not just lists small enough to render in full.
+	var window_start := int(_item_list_model.get("window_start", 0))
+	return window_start + rendered_names.size() >= _visible_item_names.size()
 
 
 func _can_update_rendered_item_rows(rendered_names: Array) -> bool:
@@ -1690,6 +1702,7 @@ func _item_row_font() -> Font:
 	probe.add_theme_font_size_override("font_size", _item_font_size)
 	_item_font = probe.get_theme_font("font")
 	_item_font_size = probe.get_theme_font_size("font_size")
+	probe.free()
 	return _item_font
 
 
@@ -1871,43 +1884,43 @@ func _debug_report_scroll_state(reason: String) -> void:
 		scroll_max = float(v_scroll.max_value)
 		scroll_page = float(v_scroll.page)
 
-		var line := (
-			(
-				"[ContainerPeek][Scroll] %s id=%s sel=%d name='%s' visible=%d scroll=%d "
-				+ "target_scroll=%d viewport=%.1f selected_top=%.1f selected_bottom=%.1f "
-				+ "items_box_y=%.1f items_box_h=%.1f layout_dirty=%s last_render_sel=%d "
-				+ "children=%d first='%s' last='%s' "
-				+ "rendered_first=%d rendered_last=%d control='%s' control_index=%d "
-				+ "control_role='%s' scroll_max=%.1f scroll_page=%.1f"
-			)
-			% [
-				reason,
-				_current_target_id,
-				selected_index,
-				selected_name,
-				_visible_item_names.size(),
-				_item_scroll.scroll_vertical,
-				_debug_last_target_scroll,
-				viewport_height,
-				selected_top,
-				selected_bottom,
-				_items_box.position.y,
-				_items_box.size.y,
-				str(_layout_dirty),
-				_last_render_selection,
-				child_count,
-				first_child_name,
-				last_child_name,
-				first_rendered_index,
-				last_rendered_index,
-				_debug_last_scroll_control_name,
-				_debug_last_scroll_control_index,
-				_debug_last_scroll_control_role,
-				scroll_max,
-				scroll_page,
-			]
+	var line := (
+		(
+			"[ContainerPeek][Scroll] %s id=%s sel=%d name='%s' visible=%d scroll=%d "
+			+ "target_scroll=%d viewport=%.1f selected_top=%.1f selected_bottom=%.1f "
+			+ "items_box_y=%.1f items_box_h=%.1f layout_dirty=%s last_render_sel=%d "
+			+ "children=%d first='%s' last='%s' "
+			+ "rendered_first=%d rendered_last=%d control='%s' control_index=%d "
+			+ "control_role='%s' scroll_max=%.1f scroll_page=%.1f"
 		)
-		_debug_append_cursor_log(line)
+		% [
+			reason,
+			_current_target_id,
+			selected_index,
+			selected_name,
+			_visible_item_names.size(),
+			_item_scroll.scroll_vertical,
+			_debug_last_target_scroll,
+			viewport_height,
+			selected_top,
+			selected_bottom,
+			_items_box.position.y,
+			_items_box.size.y,
+			str(_layout_dirty),
+			_last_render_selection,
+			child_count,
+			first_child_name,
+			last_child_name,
+			first_rendered_index,
+			last_rendered_index,
+			_debug_last_scroll_control_name,
+			_debug_last_scroll_control_index,
+			_debug_last_scroll_control_role,
+			scroll_max,
+			scroll_page,
+		]
+	)
+	_debug_append_cursor_log(line)
 
 	if selected_row == null:
 		_debug_append_cursor_log(
@@ -2003,8 +2016,9 @@ func _sync_runtime_settings(force: bool = false) -> void:
 	_settings_synced_msec = now
 	_cursor_log_enabled_current = ConfigSupport.bool_setting(self, CURSOR_LOG_KEY, false)
 	_performance_log_enabled_current = ConfigSupport.bool_setting(self, PERFORMANCE_LOG_KEY, false)
-	_rarity_colors_enabled_current = ConfigSupport.bool_setting(self, "rarity_colors", true)
+	_rarity_colors_enabled_current = ConfigSupport.bool_setting(self, RARITY_COLORS_KEY, true)
 	_show_category_icons_current = ConfigSupport.bool_setting(self, SHOW_CATEGORY_ICONS_KEY, true)
+	_show_help_hint_current = ConfigSupport.bool_setting(self, SHOW_HELP_HINT_KEY, true)
 	_show_weight_column_current = ConfigSupport.bool_setting(self, SHOW_WEIGHT_COLUMN_KEY, true)
 	_show_condition_column_current = ConfigSupport.bool_setting(
 		self, SHOW_CONDITION_COLUMN_KEY, true
@@ -2017,8 +2031,10 @@ func _sync_runtime_settings(force: bool = false) -> void:
 		self, CAPTURE_GAME_INPUT_KEY, true
 	)
 	_rummage_audio_enabled_current = ConfigSupport.bool_setting(self, RUMMAGE_AUDIO_KEY, true)
+	_enable_in_shelter_current = ConfigSupport.bool_setting(self, ENABLE_IN_SHELTER_KEY, true)
+	_rummage_in_shelter_current = ConfigSupport.bool_setting(self, RUMMAGE_IN_SHELTER_KEY, false)
 	_panel_opacity_current = clampf(
-		ConfigSupport.float_setting(self, PANEL_OPACITY_KEY, 0.9), 0.1, 1.0
+		ConfigSupport.float_setting(self, PANEL_OPACITY_KEY, 0.9), 0.0, 1.0
 	)
 	_panel_offset_current = Vector2(
 		clampf(ConfigSupport.float_setting(self, PANEL_OFFSET_X_KEY, 0.0), -400.0, 400.0),
@@ -2048,6 +2064,10 @@ func _ui_scale() -> float:
 
 func _show_category_icons() -> bool:
 	return _show_category_icons_current
+
+
+func _show_help_hint() -> bool:
+	return _show_help_hint_current
 
 
 func _show_weight_column() -> bool:

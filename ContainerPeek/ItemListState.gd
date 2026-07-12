@@ -279,7 +279,8 @@ func _visible_names(
 	):
 		var cached_revealed_count := int(cached.get("revealed_count", -1))
 		if cached_revealed_count == revealed_count:
-			return cached.get("names", []) as Array
+			# Duplicate so caller mutation cannot corrupt the cached array.
+			return (cached.get("names", []) as Array).duplicate()
 		if cached_revealed_count >= 0 and revealed_count > cached_revealed_count:
 			var reveal_order := _reveal_order(target_id, summaries, summary_signature)
 			if revealed_count <= reveal_order.size():
@@ -292,7 +293,8 @@ func _visible_names(
 					"sort_mode": sort_mode,
 					"names": cached_names,
 				}
-				return cached_names
+				# Duplicate on return; keep the stored array canonical.
+				return cached_names.duplicate()
 
 	var names := _revealed_names(target_id, summaries, summary_signature, revealed_count)
 	names.sort_custom(
@@ -305,7 +307,7 @@ func _visible_names(
 		"sort_mode": sort_mode,
 		"names": names,
 	}
-	return names
+	return names.duplicate()
 
 
 func _insert_sorted_name(
@@ -335,9 +337,20 @@ func _reveal_order(target_id: int, summaries: Dictionary, summary_signature: Str
 	if str(current_state.get("signature", "")) == summary_signature:
 		return current_state.get("names", []) as Array
 
+	# Deterministic reveal order: a canonical sorted base plus a shuffle seeded from the
+	# summary signature keeps the revealed subset identical across view resets, so leaving and
+	# returning to a container mid-rummage shows the same items rather than a fresh random draw.
+	# Seeding on the signature alone (not the instance id) survives the container node being
+	# rebuilt. Contents change -> signature changes -> a new order, exactly as intended.
 	var names: Array = summaries.keys()
 	names.sort_custom(func(a: Variant, b: Variant) -> bool: return str(a).nocasecmp_to(str(b)) < 0)
-	names.shuffle()
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash(summary_signature)
+	for i in range(names.size() - 1, 0, -1):
+		var j := rng.randi_range(0, i)
+		var swapped: Variant = names[i]
+		names[i] = names[j]
+		names[j] = swapped
 	_reveal_state_by_target[target_id] = {
 		"signature": summary_signature,
 		"names": names.duplicate(),
@@ -429,14 +442,13 @@ static func _item_name_less(a: String, b: String, summaries: Dictionary, sort_mo
 
 
 static func _rarity_rank(rarity: String) -> int:
+	# Only tiers in the game enum (ItemData.gd): Legendary > Rare > Common, Null/unknown lowest.
 	match ItemSupport.normalize_rarity_value(rarity).to_lower():
 		"legendary":
-			return 4
-		"epic":
 			return 3
 		"rare":
 			return 2
-		"uncommon":
+		"common":
 			return 1
 		_:
 			return 0
