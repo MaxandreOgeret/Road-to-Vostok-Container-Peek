@@ -380,12 +380,11 @@ static func slot_condition_ratio(slot: Variant) -> float:
 	elif slot is Dictionary:
 		raw = (slot as Dictionary).get("condition", null)
 
+	# Base Item.gd Value() treats condition as a 0-100 scale, so always divide by 100.
 	if raw is float:
-		var condition := float(raw)
-		return clampf(condition * 0.01 if condition > 1.0 else condition, 0.0, 1.0)
+		return clampf(float(raw) * 0.01, 0.0, 1.0)
 	if raw is int:
-		var condition_int := float(raw)
-		return clampf(condition_int * 0.01 if condition_int > 1.0 else condition_int, 0.0, 1.0)
+		return clampf(float(raw) * 0.01, 0.0, 1.0)
 	return 1.0
 
 
@@ -423,8 +422,8 @@ static func slot_has_nested_armor(slot: Variant) -> bool:
 static func normalize_condition_percent(value: float) -> int:
 	if value < 0.0:
 		return -1
-	var percent := value * 100.0 if value <= 1.0 else value
-	return clampi(int(round(percent)), 0, 100)
+	# Condition is already a 0-100 percent, so clamp and round without rescaling.
+	return clampi(int(round(value)), 0, 100)
 
 
 static func format_weight(weight: float) -> String:
@@ -455,8 +454,9 @@ static func rarity_color(rarity: String, enabled: bool, custom_colors: Dictionar
 	if not enabled:
 		return Color(1.0, 1.0, 1.0, 0.78)
 
-	# Mirrors the game's real rarity tiers from res://Scripts/ItemData.gd and the
-	# base tooltip rarity colors from res://Scripts/Tooltip.gd.
+	# Rarity tiers mirror res://Scripts/ItemData.gd; Rare and Legendary mirror the base
+	# tooltip colors from res://Scripts/Tooltip.gd. Common intentionally diverges to white
+	# instead of the game's green for readability against the loot list.
 	match normalize_rarity_value(rarity).to_lower():
 		"legendary":
 			return rarity_color_override(custom_colors, "legendary", Color.DARK_VIOLET)
@@ -489,22 +489,9 @@ static func normalize_rarity_value(rarity: Variant) -> String:
 			return rarity_text if not rarity_text.is_empty() else RARITY_COMMON
 
 
-static func candidate_range(node: Node) -> float:
-	var keys: Array[StringName] = [
-		&"interactionDistance",
-		&"interactionRange",
-		&"interactDistance",
-		&"interactRange",
-		&"maxDistance",
-		&"maxRange",
-		&"range",
-	]
-	for key in keys:
-		var value: Variant = node.get(key)
-		if value is float:
-			return maxf(0.1, float(value))
-		if value is int:
-			return maxf(0.1, float(value))
+static func candidate_range(_node: Node) -> float:
+	# The game exposes no per-container interaction-range property, so use a fixed
+	# vanilla-interact range for every container.
 	return 2.5
 
 
