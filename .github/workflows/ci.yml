@@ -24,7 +24,7 @@ jobs:
           python-version: "3.12"
 
       - name: Install GDScript tools
-        run: uv tool install gdtoolkit
+        run: uv tool install gdtoolkit==4.5.0
 
       - name: Add local bin to PATH
         run: echo "$HOME/.local/bin" >> "$GITHUB_PATH"
