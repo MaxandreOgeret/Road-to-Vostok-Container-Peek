@@ -6,6 +6,14 @@
 - Added a `Val.` column for single item value alongside the existing `Tot. Val.` grouped value column.
 - Added Mod Configuration Menu toggles for the Weight, Cond., Val., and Tot. Val. columns.
 - Limited sort cycling to the currently available sort modes for enabled display columns.
+- Added a Mod Configuration Menu toggle to hide the controls hint line below the preview list.
+- Changed menu opacity to allow a value of `0` for a fully invisible background.
+- Fixed item condition and value to always treat the game condition as `0-100`, matching the base game, so items at 1% condition no longer display as 100%.
+- Fixed a leak where corpse rummage created a new audio node each time the rummage sound restarted.
+- Changed XP Skills compatibility to fail soft and skip the XP award instead of erroring when the XP Skills API changes.
+- Changed the packaging script to run from any directory and to exclude hidden files from the package.
+- Fixed rummage reveal order so leaving and returning to a container mid-rummage reveals the same items instead of a fresh random draw.
+- Fixed the final "still searching" placeholder row so it also appears for containers larger than the viewport when scrolled to the bottom.
 
 ## 1.5.2
 

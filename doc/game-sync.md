@@ -6,14 +6,42 @@ Use this file as the resync checklist after decompiling a new build.
 
 Last verified against the decompiled game data currently in this repository, which reports:
 
-- `Godot Engine v4.6.1.stable.official.14d19694e`
+- `Godot Engine v4.6.2` (bytecode revision `4.5.0-stable ebc36a7`)
 
 ## How To Use This File
 
-1. Decompile the current game scripts from `RTV.pck`.
+1. Decompile the current game scripts from `RTV.pck` (see the procedure below).
 2. Re-check the upstream functions listed below.
 3. Compare them against the local mod functions listed below.
 4. If upstream changed, update the mod logic first, then update this file.
+
+## Decompiling A New Build
+
+The repository decomp is produced with [GDRE Tools](https://github.com/GDRETools/gdsdecomp), v2.5.0-beta.5. `decomp/` is gitignored and fully regenerable, so it can be replaced wholesale.
+
+1. Run a full headless recovery of the game PCK into a staging directory:
+
+   ```sh
+   ./gdre_tools.x86_64 --headless \
+       --recover="$HOME/.steam/debian-installation/steamapps/common/Road to Vostok/RTV.pck" \
+       --output="/path/to/repo/decomp_new"
+   ```
+
+   The output is roughly 13 GB; avoid tmpfs mounts such as `/tmp`.
+2. Validate the staging output before swapping:
+   - `decomp_new/gdre_export.log` reports the detected engine version and `Failed scripts: 0`.
+   - `Scripts/Interface.gd`, `Scripts/Item.gd`, `Scripts/Tooltip.gd`, and `Scripts/ItemData.gd` exist.
+3. Diff the mirrored sources to see what the game update changed:
+
+   ```sh
+   diff -rq decomp/Scripts decomp_new/Scripts
+   ```
+4. Swap the trees:
+
+   ```sh
+   mv decomp decomp_old && mv decomp_new decomp && rm -rf decomp_old
+   ```
+5. Walk the synced-behavior checklist below for every upstream file the diff flagged, then update the verified version line at the top of this file from the new `decomp/gdre_export.log`.
 
 ## Synced Behaviors
 
@@ -74,7 +102,7 @@ Last verified against the decompiled game data currently in this repository, whi
   - `Magazine` adds loaded ammo value from `slotData.itemData.compatible[0]`.
   - `Weapon` adds loaded ammo value from `slotData.itemData.ammo`.
   - Chambered weapons add one extra round.
-  - All non-`Electronics` items are multiplied by `slotData.condition * 0.01`.
+  - `slotData.condition` is a `0-100` scale, so all non-`Electronics` items are multiplied by `slotData.condition * 0.01`, exactly as `Value()` does.
   - `Cat` becomes zero value when `gameData.catDead` is true.
   - All `slotData.nested` item values are added.
   - Final value is rounded with `roundf(...)`.
@@ -135,7 +163,9 @@ Last verified against the decompiled game data currently in this repository, whi
   - `res://Scripts/Tooltip.gd`
 - What is mirrored:
   - Real game rarity tiers are `Common`, `Rare`, `Legendary`, `Null`.
-  - The base tooltip colors are `Common -> green`, `Rare -> red`, `Legendary -> dark violet`.
+  - The base `Tooltip.gd` colors are `Common -> green`, `Rare -> red`, `Legendary -> dark violet`.
+  - `Rare` and `Legendary` mirror those base tooltip colors.
+  - `Common` intentionally diverges to white for readability against the loot list, rather than the game's green.
   - The mod allows custom colors, but the tier mapping itself follows the game enum.
 - Why this matters:
   - If the game adds or renames rarity tiers, the mod's color mapping and config labels can silently become wrong.
@@ -150,6 +180,6 @@ These parts use game resources or game state, but are not direct code ports:
 
 - Shelter rummage bypass uses `GameData.shelter`.
 - Rummage audio uses the game's `Craft_Generic` audio event and `AudioInstance2D` scene.
-- Candidate interaction range uses live node fields with a `2.5m` fallback.
+- Candidate interaction range uses a fixed `2.5m`, since the game exposes no per-container range property to probe.
 
 They can still break after an update, but there is no single upstream function currently being mirrored line-for-line.

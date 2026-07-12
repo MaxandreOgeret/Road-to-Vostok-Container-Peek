@@ -59,7 +59,16 @@ When rummaging is enabled, the rummage timer includes one final no-reveal interv
 
 - The revealed item count remains capped to the real grouped row count.
 - The menu should still be considered loading during this final interval.
-- If the fully revealed list fits in the viewport, a final placeholder row may be shown to communicate that the search is still in progress.
+- A final placeholder row may be shown to communicate that the search is still in progress whenever the last revealed row sits inside the rendered window, including lists larger than the viewport scrolled to the bottom.
+
+## Reveal Order Stability
+
+The rummage reveal order is derived from the container's contents, not rolled per visit.
+
+- The order is a shuffle of the grouped names seeded from the summary signature.
+- Leaving and returning to a container mid-rummage reveals the same items in the same order.
+- Cycling sort mid-rummage reorders the display but does not change which items are revealed.
+- When the container contents change, the signature changes and a new order is derived.
 
 ## Explicit Reset Points
 

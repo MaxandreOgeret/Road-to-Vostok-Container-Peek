@@ -1,6 +1,6 @@
 # Container Peek
 
-Container Peek lets you check a container's contents the moment you aim at it, without opening the full inventory screen first.
+Container Peek lets you check a container's contents the moment you look at it, without opening the full inventory screen first.
 
 [![Mod Showcase](https://img.youtube.com/vi/SILqqw-1Vd0/0.jpg)](https://www.youtube.com/watch?v=SILqqw-1Vd0)
 
