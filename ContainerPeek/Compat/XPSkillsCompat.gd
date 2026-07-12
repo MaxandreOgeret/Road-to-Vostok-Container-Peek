@@ -73,23 +73,34 @@ static func _tracking_allowed(xp_mod: Object) -> bool:
 	if not (game_data is Object):
 		return true
 	var game_data_object := game_data as Object
-	if bool(game_data_object.get("menu")):
+	if _get_bool(game_data_object, "menu", false):
 		return false
-	if bool(game_data_object.get("shelter")):
+	if _get_bool(game_data_object, "shelter", false):
 		return false
-	if bool(game_data_object.get("isTrading")):
+	if _get_bool(game_data_object, "isTrading", false):
 		return false
 	return true
 
 
 static func _award_container_xp(xp_mod: Object) -> void:
-	var reward := float(xp_mod.get("cfg_xp_container"))
-	var fraction := float(xp_mod.get("_container_xp_fraction")) + reward
+	# XP Skills may rename or drop these across updates; Object.get() then returns
+	# null and float()/int() on null crashes. Bail out instead of awarding zeros,
+	# which would otherwise silently corrupt the player's XP totals.
+	if (
+		xp_mod.get("cfg_xp_container") == null
+		or xp_mod.get("_container_xp_fraction") == null
+		or xp_mod.get("xp") == null
+		or xp_mod.get("xpTotal") == null
+	):
+		return
+
+	var reward := _get_float(xp_mod, "cfg_xp_container", 0.0)
+	var fraction := _get_float(xp_mod, "_container_xp_fraction", 0.0) + reward
 	var whole := int(floor(fraction))
 
 	if whole > 0:
-		xp_mod.set("xp", int(xp_mod.get("xp")) + whole)
-		xp_mod.set("xpTotal", int(xp_mod.get("xpTotal")) + whole)
+		xp_mod.set("xp", _get_int(xp_mod, "xp", 0) + whole)
+		xp_mod.set("xpTotal", _get_int(xp_mod, "xpTotal", 0) + whole)
 		fraction -= float(whole)
 
 	xp_mod.set("_container_xp_fraction", fraction)
@@ -101,12 +112,12 @@ static func _try_scavenge(xp_mod: Object, container_node: Node, ui_root: Node) -
 	if not xp_mod.has_method("get_level") or not xp_mod.has_method("prestige_scavenger_bonus"):
 		return false
 
-	var level := int(xp_mod.call("get_level", 11))
-	var prestige_bonus := float(xp_mod.call("prestige_scavenger_bonus"))
+	var level := _to_int(xp_mod.call("get_level", 11), 0)
+	var prestige_bonus := _to_float(xp_mod.call("prestige_scavenger_bonus"), 0.0)
 	if level <= 0 and is_zero_approx(prestige_bonus):
 		return false
 
-	var chance := level * float(xp_mod.get("cfg_scavenger_chance")) + prestige_bonus
+	var chance := level * _get_float(xp_mod, "cfg_scavenger_chance", 0.0) + prestige_bonus
 	if randf() >= chance:
 		return false
 
@@ -137,3 +148,33 @@ static func _try_scavenge(xp_mod: Object, container_node: Node, ui_root: Node) -
 	if ui_root != null and xp_mod.has_method("_show_scavenge_notify"):
 		xp_mod.call("_show_scavenge_notify", ui_root, item_name)
 	return true
+
+
+# Cross-mod property/return values may be absent or retyped after an XP Skills
+# update, so every fetched Variant is type-checked and falls back rather than
+# being cast blindly (float()/int() on null is a hard runtime error).
+static func _to_float(value: Variant, fallback: float) -> float:
+	if value is float or value is int:
+		return float(value)
+	return fallback
+
+
+static func _to_int(value: Variant, fallback: int) -> int:
+	if value is int or value is float:
+		return int(value)
+	return fallback
+
+
+static func _get_float(obj: Object, prop: String, fallback: float) -> float:
+	return _to_float(obj.get(prop), fallback)
+
+
+static func _get_int(obj: Object, prop: String, fallback: int) -> int:
+	return _to_int(obj.get(prop), fallback)
+
+
+static func _get_bool(obj: Object, prop: String, fallback: bool) -> bool:
+	var value: Variant = obj.get(prop)
+	if value == null:
+		return fallback
+	return bool(value)

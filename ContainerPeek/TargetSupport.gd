@@ -70,10 +70,9 @@ static func normalize_prompt_text(text: String) -> String:
 
 
 static func collect_hud_text_nodes(node: Node, result: Array) -> void:
-	if node.has_method("get"):
-		var text_value: Variant = node.get("text")
-		if text_value is String:
-			result.append(node)
+	var text_value: Variant = node.get("text")
+	if text_value is String:
+		result.append(node)
 	for child in node.get_children():
 		collect_hud_text_nodes(child, result)
 
