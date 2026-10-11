@@ -34,7 +34,7 @@ It is meant to feel like a faster extension of the existing loot flow, not a sep
 
 ## Configuration
 
-If you use Mod Configuration Menu, you can:
+With Mod Configuration Menu, you can:
 
 - Rebind take, take-all, and sort keys
 - Enable or disable rarity colors
@@ -50,7 +50,7 @@ Debug logging options are session-only and reset to disabled when the game start
 
 ## Compatibility
 
-- Works with Mod Configuration Menu
+- Requires Mod Configuration Menu
 - Includes an optional compatibility hook for XP & Skills System, so popup inspection can trigger that mod's container XP and scavenger bonus path
 
 ## Source Code

@@ -24,7 +24,7 @@ Take behavior is designed to stay close to the base game. You can take the selec
 
 ## Controls
 
-By default, the mouse wheel moves the selection in the loot list, `F` takes the selected entry to your inventory, `R` takes everything from the current container, and `V` cycles through the currently available sort modes. Name sorting is always available, rarity sorting is available when rarity colors are enabled, and column sorting follows the enabled table columns. These bindings can be changed in Mod Configuration Menu when MCM is installed.
+By default, the mouse wheel moves the selection in the loot list, `F` takes the selected entry to your inventory, `R` takes everything from the current container, and `V` cycles through the currently available sort modes. Name sorting is always available, rarity sorting is available when rarity colors are enabled, and column sorting follows the enabled table columns. These bindings can be changed in Mod Configuration Menu.
 
 ## Behavior Notes
 
@@ -42,7 +42,7 @@ The condition column is only shown for item types that the game itself treats as
 
 ## Configuration
 
-When Mod Configuration Menu is installed, the mod exposes settings for the transfer keybind, the take-all keybind, the sort keybind, shared input capture, rarity colors, category icons, the controls hint line, the four optional data columns, rummage timing, rummage audio, whether the mod is enabled in shelters, whether rummaging is allowed in shelters, menu opacity (down to fully invisible), menu position offsets, UI scale, the optional `XP & Skills System` compatibility hook, and the three supported rarity color overrides.
+Through Mod Configuration Menu, the mod exposes settings for the transfer keybind, the take-all keybind, the sort keybind, shared input capture, rarity colors, category icons, the controls hint line, the four optional data columns, rummage timing, rummage audio, whether the mod is enabled in shelters, whether rummaging is allowed in shelters, menu opacity (down to fully invisible), menu position offsets, UI scale, the optional `XP & Skills System` compatibility hook, and the three supported rarity color overrides.
 
 `Capture Shared Inputs` controls whether the peek window temporarily blocks game actions that share the peek controls. `Rummage Time / Item` controls how long each grouped item row takes to appear during first inspection, and a value of `0` disables rummaging completely. `Rummage Audio` enables or disables the rummaging sound effect during reveal. `Show Category Icons` toggles the left-side item category icons in the preview list. `Show Weight Column`, `Show Condition Column`, `Show Val. Column`, and `Show Tot. Val. Column` toggle the optional data columns and their sort modes. `Enable In Shelter` controls whether the peek menu appears at all while you are in the shelter. `Rummage In Shelter` controls whether the same delay is applied while you are in the shelter. `Menu Opacity` changes the background opacity of the panel without affecting text readability. `Horizontal Pos Offset`, `Vertical Pos Offset`, and `UI Scale` adjust the panel's placement and size while keeping it clamped to the visible screen. `XP & Skills Compat` lets popup inspection trigger that mod's search XP and scavenger bonus path without opening the native container UI. The MCM options are grouped by controls, display, rummage, shelter, compatibility, and debug settings.
 
@@ -51,7 +51,7 @@ Debug logging options are session-only and reset to disabled each time the game 
 ## Compatibility
 
 - `XP & Skills System` (`ModWorkshop #55940`): supported through the optional `XP & Skills Compat` setting. When enabled, popup inspection can trigger that mod's container XP and scavenger bonus path without opening the native container UI. When rummaging is enabled, the compatibility trigger waits until rummaging finishes.
-- `Mod Configuration Menu` (`ModWorkshop #53713`): optional. Required only for rebinding controls and changing settings in game.
+- `Mod Configuration Menu` (`ModWorkshop #53713`): required. The game reloads its input actions on every map load, which removes the mod's hotkeys, and MCM registers them again.
 
 `Container Peek` does not override `Interface.gd`, `Character.gd`, or `LootContainer.gd`. Its normal runtime model is autoload-only, with optional compatibility logic isolated under `ContainerPeek/Compat/`.
 
@@ -95,7 +95,7 @@ Copy `ContainerPeek.vmz` into the game's mod folder at `~/.steam/debian-installa
 
 ## Requirements
 
-The mod requires `Road to Vostok` and the community mod loader format used by the game. `Mod Configuration Menu` is optional, but it is required if you want to change bindings or adjust shared input capture, shelter behavior, rummage, audio, opacity, position, scale, and rarity color settings in game.
+The mod requires `Road to Vostok` and the community mod loader format used by the game. `Mod Configuration Menu` is also required: it keeps the mod's hotkeys registered across map loads, and it is where you change bindings and adjust shared input capture, shelter behavior, rummage, audio, opacity, position, scale, and rarity color settings in game.
 
 ## Licensing Note
 

@@ -181,5 +181,6 @@ These parts use game resources or game state, but are not direct code ports:
 - Shelter rummage bypass uses `GameData.shelter`.
 - Rummage audio uses the game's `UI_Craft_Generic` audio event (`res://Audio/UI/`) and `AudioInstance2D` scene.
 - Candidate interaction range uses a fixed `2.5m`, since the game exposes no per-container range property to probe.
+- The mod's input actions depend on Mod Configuration Menu: `Inputs.gd` `CreateActions()` (every map load) calls `InputMap.load_from_project_settings()`, which removes runtime-added actions, and MCM adds them back afterwards.
 
 They can still break after an update, but there is no single upstream function currently being mirrored line-for-line.
