@@ -18,6 +18,7 @@
 - Mod Configuration Menu is now required: without it, the Take, Take All and Sort hotkeys stop working after the first map load.
 - Fixed the missing click sound after a successful take or take-all; it now plays once per key press.
 - Taking an item during rummaging no longer reshuffles which items are revealed.
+- Reduced per-frame work while the preview is visible (cached hint text, game data, HUD prompt check, and input capture scan).
 
 ## 1.5.2
 

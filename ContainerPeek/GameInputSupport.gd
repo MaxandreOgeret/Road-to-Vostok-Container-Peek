@@ -7,6 +7,7 @@ const MENU_WHEEL_BUTTONS := [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN]
 var _game_data: Resource
 var _weapon_input_suppressed_target_id := -1
 var _captured_action_events: Dictionary = {}
+var _capture_attempted := false
 var _debug_logger := Callable()
 
 
@@ -64,9 +65,11 @@ func clear_weapon_input_suppression() -> void:
 	_weapon_input_suppressed_target_id = -1
 
 
+# Scans the InputMap once per show; restore_menu_input() re-arms it.
 func capture_menu_input(protected_actions: Array[StringName]) -> void:
-	if not _captured_action_events.is_empty():
+	if _capture_attempted:
 		return
+	_capture_attempted = true
 
 	var menu_events := _menu_input_events(protected_actions)
 	for action_variant in InputMap.get_actions():
@@ -100,6 +103,7 @@ func capture_menu_input(protected_actions: Array[StringName]) -> void:
 
 
 func restore_menu_input() -> void:
+	_capture_attempted = false
 	if _captured_action_events.is_empty():
 		return
 
@@ -195,9 +199,7 @@ func _weapon_is_held() -> bool:
 
 
 func _load_game_data() -> Resource:
-	if not ResourceLoader.exists(GAME_DATA_RES):
-		return null
-	if _game_data == null:
+	if _game_data == null and ResourceLoader.exists(GAME_DATA_RES):
 		_game_data = load(GAME_DATA_RES) as Resource
 	return _game_data
 

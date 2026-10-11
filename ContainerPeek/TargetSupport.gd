@@ -63,32 +63,3 @@ static func _node_looks_like_corpse(node: Node) -> bool:
 		return true
 
 	return false
-
-
-static func normalize_prompt_text(text: String) -> String:
-	return text.strip_edges().to_lower()
-
-
-static func collect_hud_text_nodes(node: Node, result: Array) -> void:
-	var text_value: Variant = node.get("text")
-	if text_value is String:
-		result.append(node)
-	for child in node.get_children():
-		collect_hud_text_nodes(child, result)
-
-
-static func hud_text_matches(candidates: Array, target_name: String) -> bool:
-	for candidate_variant in candidates:
-		if not (candidate_variant is Node):
-			continue
-		var candidate := candidate_variant as Node
-		if not is_instance_valid(candidate):
-			continue
-		if candidate is CanvasItem and not (candidate as CanvasItem).is_visible_in_tree():
-			continue
-		var text_value: Variant = candidate.get("text")
-		if text_value is String:
-			var text := normalize_prompt_text(text_value as String)
-			if not text.is_empty() and text.contains(target_name):
-				return true
-	return false

@@ -111,6 +111,7 @@ var _scroll_to_top_on_render := false
 var _last_panel_opacity := -1.0
 var _last_ui_scale := -1.0
 var _last_hint_text := ""
+var _hint_text_current := ""
 var _last_header_gutter := -1
 var _last_icons_enabled := true
 var _last_columns_signature := ""
@@ -147,7 +148,6 @@ var _item_font_size := 13
 var _item_text_width_cache: Dictionary = {}
 var _interactor: RayCast3D
 var _hud: Node
-var _hud_text_nodes: Array = []
 var _rummage_audio: AudioStreamPlayer
 var _corpse_rummage_stream: AudioStream
 var _selected_row_style: StyleBox
@@ -185,6 +185,7 @@ func _ready() -> void:
 		SORT_MODE_UNIT_VALUE
 	)
 	_ensure_sort_mode_available()
+	_hint_text_current = _hint_text()
 
 
 func _exit_tree() -> void:
@@ -568,7 +569,6 @@ func _resolve_hud() -> Node:
 		var node := scene.get_node_or_null(path)
 		if node != null:
 			_hud = node
-			_hud_text_nodes.clear()
 			return _hud
 
 	return null
@@ -610,7 +610,6 @@ func _teardown_runtime() -> void:
 	_ui_host = null
 	_interactor = null
 	_hud = null
-	_hud_text_nodes.clear()
 	_rummage_audio = null
 	_corpse_rummage_stream = null
 	_item_font = null
@@ -854,12 +853,11 @@ func _refresh_hint_if_needed() -> void:
 	if not show_hint:
 		return
 
-	var hint_text := _hint_text()
-	if _last_hint_text == hint_text:
+	if _last_hint_text == _hint_text_current:
 		return
 
-	_last_hint_text = hint_text
-	_hint_label.text = hint_text
+	_last_hint_text = _hint_text_current
+	_hint_label.text = _hint_text_current
 	_layout_dirty = true
 
 
@@ -1089,15 +1087,18 @@ func _shelter_bypasses_rummaging() -> bool:
 
 
 func _in_shelter() -> bool:
-	if not ResourceLoader.exists(GAME_DATA_RES):
-		return false
-	if _game_data == null:
-		_game_data = load(GAME_DATA_RES) as Resource
-	if _game_data == null:
+	var game_data := _resolve_game_data()
+	if game_data == null:
 		return false
 
-	var shelter: Variant = _game_data.get("shelter")
+	var shelter: Variant = game_data.get("shelter")
 	return shelter != null and bool(shelter)
+
+
+func _resolve_game_data() -> Resource:
+	if _game_data == null and ResourceLoader.exists(GAME_DATA_RES):
+		_game_data = load(GAME_DATA_RES) as Resource
+	return _game_data
 
 
 func _ensure_rummage_sound_playing() -> void:
@@ -1291,40 +1292,23 @@ func _target_from_interactor(cam: Camera3D) -> Dictionary:
 	return _build_target_data(container_node)
 
 
+# Mirrors res://Scripts/HUD.gd: the tooltip label shows gameData.tooltip while
+# gameData.interaction is set and gameData.transition is not, and the whole HUD hides
+# while a game UI is open. LootContainer.UpdateTooltip() writes containerName + " [Open]".
 func _hud_allows_container(container_node: Node3D) -> bool:
 	var hud := _resolve_hud()
 	if hud == null:
 		return true
+	if hud is CanvasItem and not (hud as CanvasItem).is_visible_in_tree():
+		return false
 
-	var target_name := TargetSupport.normalize_prompt_text(_debug_name(container_node))
-	if target_name.is_empty():
+	var game_data := _resolve_game_data()
+	if game_data == null:
 		return true
-
-	_ensure_hud_text_nodes(hud)
-	return _hud_text_matches(target_name)
-
-
-func _ensure_hud_text_nodes(hud: Node) -> void:
-	if not _hud_text_nodes.is_empty():
-		return
-	TargetSupport.collect_hud_text_nodes(hud, _hud_text_nodes)
-
-
-func _hud_text_matches(target_name: String) -> bool:
-	for candidate_variant in _hud_text_nodes:
-		if not (candidate_variant is Node):
-			continue
-		var candidate := candidate_variant as Node
-		if not is_instance_valid(candidate):
-			continue
-		if candidate is CanvasItem and not (candidate as CanvasItem).is_visible_in_tree():
-			continue
-		var text_value: Variant = candidate.get("text")
-		if text_value is String:
-			var text := TargetSupport.normalize_prompt_text(text_value as String)
-			if not text.is_empty() and text.contains(target_name):
-				return true
-	return false
+	if not bool(game_data.get("interaction")) or bool(game_data.get("transition")):
+		return false
+	var tooltip := str(game_data.get("tooltip")).strip_edges()
+	return tooltip.begins_with(_debug_name(container_node))
 
 
 func _build_target_data(node: Node3D) -> Dictionary:
@@ -1606,6 +1590,7 @@ func _cycle_sort_mode() -> void:
 		current_index = 0
 	_sort_mode = int(modes[posmod(current_index + 1, modes.size())])
 	_store_sort_mode()
+	_hint_text_current = _hint_text()
 	_refresh_hint_if_needed()
 	_reset_view_for_sort_change()
 	_last_render_target_id = -1
@@ -2068,6 +2053,7 @@ func _sync_runtime_settings(force: bool = false) -> void:
 	_rarity_color_map_current = _build_rarity_color_map()
 	_rarity_color_signature_current = _build_rarity_color_signature(_rarity_color_map_current)
 	_ensure_sort_mode_available()
+	_hint_text_current = _hint_text()
 	_item_list.set_debug_enabled(_cursor_log_enabled_current, DEBUG_CURSOR_LOG_PATH)
 	_game_input.set_debug_logger(Callable(self, "_debug_append_cursor_log"))
 
@@ -2206,13 +2192,10 @@ func _interface_inventory_open() -> bool:
 
 
 func _game_data_interface_open() -> bool:
-	if not ResourceLoader.exists(GAME_DATA_RES):
+	var game_data := _resolve_game_data()
+	if game_data == null:
 		return false
-	if _game_data == null:
-		_game_data = load(GAME_DATA_RES) as Resource
-	if _game_data == null:
-		return false
-	var flag: Variant = _game_data.get("interface")
+	var flag: Variant = game_data.get("interface")
 	return flag != null and bool(flag)
 
 

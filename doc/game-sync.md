@@ -174,6 +174,24 @@ The repository decomp is produced with [GDRE Tools](https://github.com/GDRETools
   - Items fall into the wrong rarity bucket.
   - A future update introduces a new rarity tier that the mod ignores.
 
+### HUD Interaction Prompt
+
+- Local code:
+  - `ContainerPeek/Main.gd` `_hud_allows_container`
+- Upstream source:
+  - `res://Scripts/HUD.gd` `_physics_process()`
+  - `res://Scripts/LootContainer.gd` `UpdateTooltip()`
+  - `res://Scripts/UIManager.gd` `UIOpen()` / `UIClose()`
+- What is mirrored:
+  - The HUD tooltip label shows `gameData.tooltip` and is visible only while `gameData.interaction` is true and `gameData.transition` is false.
+  - `LootContainer.UpdateTooltip()` sets `gameData.tooltip` to `containerName` plus ` [Locked]` or ` [Open]`.
+  - The HUD node is hidden while a game UI is open.
+  - The peek window only shows for a container when the HUD is visible, the same interaction flags hold, and `gameData.tooltip` starts with that container's name.
+- Why this matters:
+  - The peek window should only appear when the game itself shows the interaction prompt for that container.
+- Signs this is stale:
+  - The peek window never appears, or appears for containers the game is not prompting for.
+
 ## Not Covered Here
 
 These parts use game resources or game state, but are not direct code ports:
