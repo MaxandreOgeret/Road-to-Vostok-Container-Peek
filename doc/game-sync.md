@@ -58,7 +58,7 @@ The repository decomp is produced with [GDRE Tools](https://github.com/GDRETools
 - What is mirrored:
   - Container-to-inventory transfer must try `AutoStack(...)` first.
   - If stacking does not consume the item, it must fall back to `Create(...)`.
-  - Success should still use the game's normal click/reset flow.
+  - Success should still call the interface `Reset()`, then play `AudioLibrary.UIClick` through `AudioInstance2D` once per key press. `Interface.PlayClick()` is not used because it only plays while `gameData.interface` is true, which is never the case for popup transfers.
   - Failure should still use the game's error feedback.
 - Why this matters:
   - Without the `AutoStack(...)` pass, ammo and other stackables get dropped into empty slots instead of merging into existing stacks.

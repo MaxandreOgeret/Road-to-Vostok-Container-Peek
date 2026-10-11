@@ -2228,10 +2228,14 @@ func _current_target_is_loading() -> bool:
 
 
 func _try_transfer_selected() -> bool:
-	if _last_focus_node != null and is_instance_valid(_last_focus_node):
-		_ensure_container_materialized(_last_focus_node)
-		return _try_direct_selected_transfer(_last_focus_node)
-	return false
+	if _last_focus_node == null or not is_instance_valid(_last_focus_node):
+		return false
+
+	_ensure_container_materialized(_last_focus_node)
+	if not _try_direct_selected_transfer(_last_focus_node):
+		return false
+	_play_transfer_click()
+	return true
 
 
 # Stop on the first failed insert so partial take-all stays predictable when space runs out.
@@ -2251,6 +2255,8 @@ func _try_take_all_selected_container() -> bool:
 			break
 		moved_any = true
 
+	if moved_any:
+		_play_transfer_click()
 	if moved_any and _current_target_id != -1:
 		_item_list.reset_target(_current_target_id)
 		_item_list_model.clear()
@@ -2269,7 +2275,8 @@ func _try_direct_selected_transfer(container_node: Node) -> bool:
 
 
 # Mirrors res://Scripts/Interface.gd FastTransfer()/ContextTransfer(): try AutoStack()
-# into inventory first, then Create()/AutoPlace(), while preserving click/error feedback.
+# into inventory first, then Create()/AutoPlace(). Failure plays the game's error sound here;
+# callers play the success click once per key press.
 func _try_direct_slot_transfer(container_node: Node, slot: Variant) -> bool:
 	var interface_node := _resolve_interface_node()
 	if interface_node == null or slot == null:
@@ -2298,9 +2305,27 @@ func _try_direct_slot_transfer(container_node: Node, slot: Variant) -> bool:
 	_last_render_target_id = -1
 	if interface_node.has_method("Reset"):
 		interface_node.call("Reset")
-	if interface_node.has_method("PlayClick"):
-		interface_node.call("PlayClick")
 	return true
+
+
+# Interface.PlayClick() is silent unless gameData.interface is true, which it never is for
+# popup transfers, so play the same AudioLibrary.UIClick event directly.
+func _play_transfer_click() -> void:
+	var interface_node := _resolve_interface_node()
+	if interface_node == null or not is_instance_valid(interface_node):
+		return
+	var audio_library: Variant = interface_node.get("audioLibrary")
+	if not (audio_library is Resource):
+		return
+	var click_event: Variant = (audio_library as Resource).get("UIClick")
+	if click_event == null:
+		return
+	var click := AUDIO_INSTANCE_2D_SCENE.instantiate()
+	if click == null:
+		return
+	interface_node.add_child(click)
+	if click.has_method("PlayInstance"):
+		click.call("PlayInstance", click_event)
 
 
 func _play_error_beep(interface_node: Node) -> void:

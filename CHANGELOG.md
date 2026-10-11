@@ -16,6 +16,7 @@
 - Fixed the final "still searching" placeholder row so it also appears for containers larger than the viewport when scrolled to the bottom.
 - Fixed loading on the latest game update, which moved the rummage sound to `res://Audio/UI/UI_Craft_Generic.tres`.
 - Mod Configuration Menu is now required: without it, the Take, Take All and Sort hotkeys stop working after the first map load.
+- Fixed the missing click sound after a successful take or take-all; it now plays once per key press.
 
 ## 1.5.2
 
