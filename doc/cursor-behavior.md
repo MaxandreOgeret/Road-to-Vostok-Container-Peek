@@ -44,6 +44,7 @@ When a selected item identity disappears because transfer removed the last group
 - If the removed row was the last visible row, the cursor should move to the row above.
 - This applies both before and after the viewport has reached full size.
 - If the selected grouped row still exists after transfer, the cursor stays on that grouped row.
+- `Take All` is blocked while the container is still rummaging. `Take` is allowed, and the rows already revealed stay revealed: only the taken row can disappear, and only when its last stack is gone.
 
 ## Sort Change Reset Rule
 
@@ -68,7 +69,10 @@ The rummage reveal order is derived from the container's contents, not rolled pe
 - The order is a shuffle of the grouped names seeded from the summary signature.
 - Leaving and returning to a container mid-rummage reveals the same items in the same order.
 - Cycling sort mid-rummage reorders the display but does not change which items are revealed.
-- When the container contents change, the signature changes and a new order is derived.
+- The order survives view resets (target change, panel close, sort change) for as long as the rummage progress does.
+- When the container contents change, the previous order is carried forward: names that are gone are dropped, the rest keep their relative order, and new names are appended as unrevealed.
+- If a dropped name was already revealed, the rummage progress rewinds by one step per dropped name, so no hidden item is revealed as a result of a take. The reveal then continues at its normal pace.
+- Taking the last revealed item while hidden items remain leaves the list showing only the placeholder until the next reveal step. Taking an item during the final no-reveal interval keeps the list in that interval.
 
 ## Explicit Reset Points
 

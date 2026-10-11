@@ -36,7 +36,7 @@ The preview groups identical item names into a single row. Because of that group
 
 When `Rummage Time / Item` is greater than `0`, newly inspected containers reveal grouped rows over time. Setting that value to `0` restores the immediate display behavior. Empty containers still spend one rummage interval in the loading state before showing `Empty`, unless rummaging has been disabled. Non-empty containers also spend one final rummage interval after the last grouped row appears, simulating a final search that finds nothing else.
 
-`Take All` is unavailable while rummaging is still in progress. A successful take plays the game's inventory click sound once per key press. When `Take All` fails because the inventory is full, it stops at the first failed insert so the result stays predictable.
+`Take All` is unavailable while rummaging is still in progress. `Take` works during rummaging: rows that were already revealed stay revealed, and the reveal continues at its normal pace without a hidden item taking the removed row's place. A successful take plays the game's inventory click sound once per key press. When `Take All` fails because the inventory is full, it stops at the first failed insert so the result stays predictable.
 
 The condition column is only shown for item types that the game itself treats as condition-bearing, such as weapons, armor, helmets, rigs with armor inserts, and items that explicitly enable `showCondition`. Rarity color settings only apply to the game's real rarity tiers: `Common`, `Rare`, and `Legendary`.
 

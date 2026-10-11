@@ -32,7 +32,6 @@ func reset() -> void:
 		or not _window_start_by_target.is_empty()
 		or not _anchored_by_target.is_empty()
 		or not _manual_input_by_target.is_empty()
-		or not _reveal_state_by_target.is_empty()
 		or not _visible_names_cache_by_target.is_empty()
 	)
 	_selected_name_by_target.clear()
@@ -40,7 +39,6 @@ func reset() -> void:
 	_window_start_by_target.clear()
 	_anchored_by_target.clear()
 	_manual_input_by_target.clear()
-	_reveal_state_by_target.clear()
 	_visible_names_cache_by_target.clear()
 	if had_state:
 		_debug_log("reset-all")
@@ -55,7 +53,6 @@ func reset_target(target_id: int) -> void:
 		or _window_start_by_target.has(target_id)
 		or _anchored_by_target.has(target_id)
 		or _manual_input_by_target.has(target_id)
-		or _reveal_state_by_target.has(target_id)
 		or _visible_names_cache_by_target.has(target_id)
 	)
 	_selected_name_by_target.erase(target_id)
@@ -63,10 +60,32 @@ func reset_target(target_id: int) -> void:
 	_window_start_by_target.erase(target_id)
 	_anchored_by_target.erase(target_id)
 	_manual_input_by_target.erase(target_id)
-	_reveal_state_by_target.erase(target_id)
 	_visible_names_cache_by_target.erase(target_id)
 	if had_state:
 		_debug_log("reset-target id=%d" % target_id)
+
+
+# Reveal order outlives view resets, like the rummage progress it pairs with: a view reset after
+# the contents changed would otherwise re-seed the order and reshuffle what is already revealed.
+func clear_reveal_state() -> void:
+	_reveal_state_by_target.clear()
+
+
+# Brings the reveal order up to date with the contents and returns how many names inside the
+# first `revealed_count` entries of the previous order are gone, so the caller can rewind the
+# reveal progress by that many steps instead of letting hidden names fill the gap.
+func sync_reveal_order(
+	target_id: int, summaries: Dictionary, summary_signature: String, revealed_count: int
+) -> int:
+	var previous := _reveal_state_by_target.get(target_id, {}) as Dictionary
+	var dropped := 0
+	if not previous.is_empty() and str(previous.get("signature", "")) != summary_signature:
+		var previous_names := previous.get("names", []) as Array
+		for i in range(mini(revealed_count, previous_names.size())):
+			if not summaries.has(str(previous_names[i])):
+				dropped += 1
+	_reveal_order(target_id, summaries, summary_signature)
+	return dropped
 
 
 func reset_for_sort_change(target_id: int) -> void:
@@ -337,11 +356,32 @@ func _reveal_order(target_id: int, summaries: Dictionary, summary_signature: Str
 	if str(current_state.get("signature", "")) == summary_signature:
 		return current_state.get("names", []) as Array
 
+	if not current_state.is_empty():
+		# Contents changed: keep surviving names in their previous order so the revealed prefix
+		# stays put, and queue new names as unrevealed at the end.
+		var carried: Array = []
+		for name_variant in current_state.get("names", []) as Array:
+			if summaries.has(str(name_variant)):
+				carried.append(str(name_variant))
+		var added: Array = []
+		for name_variant in summaries.keys():
+			if not carried.has(str(name_variant)):
+				added.append(str(name_variant))
+		added.sort_custom(
+			func(a: Variant, b: Variant) -> bool: return str(a).nocasecmp_to(str(b)) < 0
+		)
+		carried.append_array(added)
+		_reveal_state_by_target[target_id] = {
+			"signature": summary_signature,
+			"names": carried.duplicate(),
+		}
+		return carried
+
 	# Deterministic reveal order: a canonical sorted base plus a shuffle seeded from the
 	# summary signature keeps the revealed subset identical across view resets, so leaving and
 	# returning to a container mid-rummage shows the same items rather than a fresh random draw.
 	# Seeding on the signature alone (not the instance id) survives the container node being
-	# rebuilt. Contents change -> signature changes -> a new order, exactly as intended.
+	# rebuilt. Later content changes carry this order forward (see above) instead of re-seeding.
 	var names: Array = summaries.keys()
 	names.sort_custom(func(a: Variant, b: Variant) -> bool: return str(a).nocasecmp_to(str(b)) < 0)
 	var rng := RandomNumberGenerator.new()

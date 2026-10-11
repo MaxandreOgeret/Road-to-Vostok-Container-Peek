@@ -588,6 +588,7 @@ func _teardown_runtime() -> void:
 	_hide_panel()
 	_tracked.clear()
 	_rummage_progress_by_id.clear()
+	_item_list.clear_reveal_state()
 	_xp_skills_notified_by_id.clear()
 	_placeholder_blocks.clear()
 	_last_focus_node = null
@@ -706,6 +707,7 @@ func _show_panel(data: Dictionary, delta: float) -> void:
 		var summaries := _current_summaries(_last_focus_node)
 		if perf_enabled:
 			summary_us = Time.get_ticks_usec() - summaries_start_us
+		_sync_reveal_order(_current_target_id, summaries)
 		_advance_rummage_progress(_current_target_id, summaries.size(), delta)
 		var rummage_loading := _is_rummage_loading(_current_target_id)
 		_maybe_notify_xp_skills_open(_last_focus_node)
@@ -1010,6 +1012,26 @@ func _advance_rummage_progress(container_id: int, total_item_count: int, delta: 
 	state["completed"] = elapsed >= full_duration
 	if bool(state.get("completed", false)):
 		_stop_rummage_sound()
+	_store_rummage_state(container_id, state)
+
+
+# Taking a revealed item mid-rummage drops it from the reveal order. Rewind the progress by the
+# same number of steps so the revealed set shrinks by that item instead of a hidden one popping in.
+func _sync_reveal_order(container_id: int, summaries: Dictionary) -> void:
+	var delay := _rummage_seconds_per_item()
+	var state := _rummage_state(container_id)
+	var elapsed := float(state.get("elapsed", 0.0))
+	var revealed := int(floor(elapsed / delay)) if delay > 0.0 else 0
+	var dropped := _item_list.sync_reveal_order(
+		container_id, summaries, _cached_summary_signature, revealed
+	)
+	if dropped <= 0 or delay <= 0.0 or bool(state.get("completed", false)):
+		return
+	var rewound := maxf(0.0, elapsed - delay * float(dropped))
+	if int(floor(rewound / delay)) < revealed - dropped:
+		# Float rounding must not hide one more row than was taken.
+		rewound += delay * 0.001
+	state["elapsed"] = rewound
 	_store_rummage_state(container_id, state)
 
 
