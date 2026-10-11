@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.6.0
 
 - Added one final no-reveal rummage interval after the last grouped item row appears.
 - Added a `Val.` column for single item value alongside the existing `Tot. Val.` grouped value column.
