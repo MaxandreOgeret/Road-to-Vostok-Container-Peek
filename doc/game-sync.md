@@ -6,7 +6,7 @@ Use this file as the resync checklist after decompiling a new build.
 
 Last verified against the decompiled game data currently in this repository, which reports:
 
-- `Godot Engine v4.6.2` (bytecode revision `4.5.0-stable ebc36a7`)
+- `Godot Engine v4.6.3` (bytecode revision `4.5.0-stable ebc36a7`)
 
 ## How To Use This File
 
@@ -179,7 +179,7 @@ The repository decomp is produced with [GDRE Tools](https://github.com/GDRETools
 These parts use game resources or game state, but are not direct code ports:
 
 - Shelter rummage bypass uses `GameData.shelter`.
-- Rummage audio uses the game's `Craft_Generic` audio event and `AudioInstance2D` scene.
+- Rummage audio uses the game's `UI_Craft_Generic` audio event (`res://Audio/UI/`) and `AudioInstance2D` scene.
 - Candidate interaction range uses a fixed `2.5m`, since the game exposes no per-container range property to probe.
 
 They can still break after an update, but there is no single upstream function currently being mirrored line-for-line.

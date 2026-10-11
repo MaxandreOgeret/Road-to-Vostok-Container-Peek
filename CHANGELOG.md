@@ -14,6 +14,7 @@
 - Changed the packaging script to run from any directory and to exclude hidden files from the package.
 - Fixed rummage reveal order so leaving and returning to a container mid-rummage reveals the same items instead of a fresh random draw.
 - Fixed the final "still searching" placeholder row so it also appears for containers larger than the viewport when scrolled to the bottom.
+- Fixed loading on the latest game update, which moved the rummage sound to `res://Audio/UI/UI_Craft_Generic.tres`.
 
 ## 1.5.2
 
